@@ -1,10 +1,11 @@
-import { useState } from "react";
-import { platforms } from "../data/platforms";
-import type { PlatformPreset } from "../data/platforms";
+import {useState} from "react";
+import {platforms} from "../data/platforms";
+import type {PlatformPreset} from "../data/platforms";
+
 
 interface Props {
 
-    onSelect:(platform:PlatformPreset)=>void;
+    onSelect:(platforms:PlatformPreset[])=>void;
 
 }
 
@@ -16,6 +17,9 @@ export default function PlatformSelector({
 
 
     const [search,setSearch] = useState("");
+
+    const [selected,setSelected] =
+        useState<PlatformPreset[]>([]);
 
 
 
@@ -29,6 +33,44 @@ export default function PlatformSelector({
 
 
 
+    function toggle(platform:PlatformPreset){
+
+
+        const exists =
+            selected.some(
+                item=>item.id===platform.id
+            );
+
+
+        let updated;
+
+
+        if(exists){
+
+            updated =
+            selected.filter(
+                item=>item.id!==platform.id
+            );
+
+        }
+
+        else{
+
+            updated=[
+                ...selected,
+                platform
+            ];
+
+        }
+
+
+        setSelected(updated);
+        onSelect(updated);
+
+    }
+
+
+
     return (
 
         <div className="space-y-4">
@@ -36,75 +78,87 @@ export default function PlatformSelector({
 
             <input
 
-                value={search}
+            placeholder="Search platforms..."
 
-                onChange={(e)=>
-                    setSearch(e.target.value)
-                }
+            value={search}
 
-                placeholder="Search platforms..."
+            onChange={(e)=>
+                setSearch(e.target.value)
+            }
 
-                className="
-                    w-full
-                    rounded-lg
-                    border
-                    p-3
-                    dark:bg-neutral-900
-                "
+            className="
+                w-full
+                rounded-lg
+                border
+                p-3
+            "
 
             />
 
 
 
-            <div
-            className="
-            grid
-            gap-3
-            md:grid-cols-2
-            "
-            >
+            <div className="
+                grid
+                gap-3
+                md:grid-cols-2
+            ">
 
 
             {
-            filtered.map((item)=>(
+            filtered.map(platform=>(
+
 
                 <button
 
-                key={item.id}
+                key={platform.id}
 
                 onClick={()=>
-                    onSelect(item)
+                    toggle(platform)
                 }
 
-                className="
-                    rounded-xl
-                    border
-                    p-4
-                    text-left
-                    hover:bg-neutral-100
-                    dark:hover:bg-neutral-900
-                "
+
+                className={`
+
+                rounded-xl
+                border
+                p-4
+                text-left
+
+                ${
+                selected.some(
+                    item=>item.id===platform.id
+                )
+                ?
+                "bg-neutral-200 dark:bg-neutral-800"
+                :
+                ""
+                }
+
+                `}
+
 
                 >
 
-                    <p className="font-bold">
-                        {item.platform}
-                    </p>
+                <b>
+                    {platform.platform}
+                </b>
+
+                <br/>
+
+                {platform.name}
 
 
-                    <p>
-                        {item.name}
-                    </p>
+                <p className="text-sm opacity-60">
 
+                    {platform.width}
+                    ×
+                    {platform.height}
 
-                    <p className="text-sm opacity-60">
-
-                        {item.width} × {item.height}
-
-                    </p>
+                </p>
 
 
                 </button>
+
 
             ))
             }

@@ -16,9 +16,8 @@ export default function App() {
     } = useImage();
 
 
-    const [selectedPlatform, setSelectedPlatform] =
-        useState<PlatformPreset | null>(null);
-
+    const [selectedPlatforms, setSelectedPlatforms] =
+         useState<PlatformPreset[]>([]);
 
 
     return (
@@ -74,7 +73,7 @@ export default function App() {
                         <div className="mt-10">
 
                             <PlatformSelector
-                                onSelect={setSelectedPlatform}
+                                onSelect={setSelectedPlatforms}
                             />
 
                         </div>
