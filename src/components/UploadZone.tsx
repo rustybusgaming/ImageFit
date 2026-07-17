@@ -3,30 +3,52 @@ import { useDropzone } from "react-dropzone";
 import { UploadCloud } from "lucide-react";
 
 
-export default function UploadZone() {
+interface UploadZoneProps {
+    onUpload: (file: File) => void;
+}
+
+
+export default function UploadZone({
+    onUpload
+}: UploadZoneProps) {
+
     const [preview, setPreview] = useState<string | null>(null);
 
 
     function handleFile(file: File) {
+
         if (!file.type.startsWith("image/")) {
             return;
         }
 
+
         const url = URL.createObjectURL(file);
+
+        onUpload(file);
+
         setPreview(url);
+
     }
 
 
     useEffect(() => {
+
         return () => {
+
             if (preview) {
                 URL.revokeObjectURL(preview);
             }
+
         };
+
     }, [preview]);
 
 
-    const { getRootProps, getInputProps } = useDropzone({
+
+    const {
+        getRootProps,
+        getInputProps
+    } = useDropzone({
 
         accept: {
             "image/*": []
@@ -35,18 +57,23 @@ export default function UploadZone() {
         multiple: false,
 
         onDrop: (acceptedFiles) => {
+
             const file = acceptedFiles[0];
 
             if (file) {
                 handleFile(file);
             }
+
         }
 
     });
 
 
+
     return (
+
         <div className="space-y-6">
+
 
             <div
                 {...getRootProps()}
@@ -85,7 +112,9 @@ export default function UploadZone() {
                     or click to browse
                 </p>
 
+
             </div>
+
 
 
             {preview && (
@@ -106,6 +135,9 @@ export default function UploadZone() {
 
             )}
 
+
         </div>
+
     );
+
 }
