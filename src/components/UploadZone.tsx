@@ -2,142 +2,77 @@ import { useState, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { UploadCloud } from "lucide-react";
 
-
 interface UploadZoneProps {
-    onUpload: (file: File) => void;
+  onUpload: (file: File) => void;
 }
 
+export default function UploadZone({ onUpload }: UploadZoneProps) {
+  const [preview, setPreview] = useState<string | null>(null);
 
-export default function UploadZone({
-    onUpload
-}: UploadZoneProps) {
-
-    const [preview, setPreview] = useState<string | null>(null);
-
-
-    function handleFile(file: File) {
-
-        if (!file.type.startsWith("image/")) {
-            return;
-        }
-
-
-        const url = URL.createObjectURL(file);
-
-        onUpload(file);
-
-        setPreview(url);
-
+  function handleFile(file: File) {
+    if (!file.type.startsWith("image/")) {
+      return;
     }
 
+    const url = URL.createObjectURL(file);
+    onUpload(file);
+    setPreview(url);
+  }
 
-    useEffect(() => {
+  useEffect(() => {
+    return () => {
+      if (preview) {
+        URL.revokeObjectURL(preview);
+      }
+    };
+  }, [preview]);
 
-        return () => {
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    accept: {
+      "image/*": [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"],
+    },
+    multiple: false,
+    onDrop: (acceptedFiles) => {
+      const file = acceptedFiles[0];
+      if (file) {
+        handleFile(file);
+      }
+    },
+  });
 
-            if (preview) {
-                URL.revokeObjectURL(preview);
-            }
+  return (
+    <div className="space-y-6">
+      <div
+        {...getRootProps()}
+        className={`cursor-pointer border-2 border-dashed rounded-xl p-12 text-center transition ${
+          isDragActive
+            ? "border-blue-500 bg-blue-50 dark:bg-blue-950"
+            : "hover:bg-neutral-100 dark:hover:bg-neutral-900"
+        }`}
+        role="button"
+        tabIndex={0}
+        aria-label="Upload image drop zone"
+      >
+        <input {...getInputProps()} />
 
-        };
+        <UploadCloud className="mx-auto mb-4 h-12 w-12" aria-hidden="true" />
 
-    }, [preview]);
+        <p className="text-lg font-medium">
+          {isDragActive ? "Drop your image here" : "Drop an image here"}
+        </p>
 
+        <p className="text-sm opacity-60">or click to browse</p>
+      </div>
 
-
-    const {
-        getRootProps,
-        getInputProps
-    } = useDropzone({
-
-        accept: {
-            "image/*": []
-        },
-
-        multiple: false,
-
-        onDrop: (acceptedFiles) => {
-
-            const file = acceptedFiles[0];
-
-            if (file) {
-                handleFile(file);
-            }
-
-        }
-
-    });
-
-
-
-    return (
-
-        <div className="space-y-6">
-
-
-            <div
-                {...getRootProps()}
-                className="
-                    cursor-pointer
-                    border-2
-                    border-dashed
-                    rounded-xl
-                    p-12
-                    text-center
-                    transition
-                    hover:bg-neutral-100
-                    dark:hover:bg-neutral-900
-                "
-            >
-
-                <input {...getInputProps()} />
-
-
-                <UploadCloud
-                    className="
-                        mx-auto
-                        mb-4
-                        h-12
-                        w-12
-                    "
-                />
-
-
-                <p className="text-lg">
-                    Drop an image here
-                </p>
-
-
-                <p className="text-sm opacity-60">
-                    or click to browse
-                </p>
-
-
-            </div>
-
-
-
-            {preview && (
-
-                <div className="flex justify-center">
-
-                    <img
-                        src={preview}
-                        alt="Uploaded preview"
-                        className="
-                            max-h-80
-                            rounded-xl
-                            shadow
-                        "
-                    />
-
-                </div>
-
-            )}
-
-
+      {preview && (
+        <div className="flex justify-center">
+          <img
+            src={preview}
+            alt="Uploaded preview"
+            className="max-h-80 rounded-xl shadow-lg"
+          />
         </div>
-
-    );
-
+      )}
+    </div>
+  );
 }
