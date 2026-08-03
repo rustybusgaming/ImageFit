@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { resizeImage } from "../lib/imageProcessor";
 import { downloadBlob } from "../lib/download";
 import { downloadZip } from "../lib/zip";
@@ -76,7 +76,11 @@ export default function ExportPanel({ image, platforms }: Props) {
         onClick={exportImages}
         className="mt-5 inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        <Download className="h-4 w-4" />
+        {isExporting ? (
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+        ) : (
+          <Download className="h-4 w-4" aria-hidden="true" />
+        )}
         {isExporting
           ? "Exporting..."
           : platforms.length === 1
