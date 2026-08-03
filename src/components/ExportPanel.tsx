@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Download } from "lucide-react";
 import { resizeImage } from "../lib/imageProcessor";
 import { downloadBlob } from "../lib/download";
 import { downloadZip } from "../lib/zip";
@@ -53,22 +54,40 @@ export default function ExportPanel({ image, platforms }: Props) {
   }
 
   return (
-    <div className="mt-6 space-y-2">
+    <div className="rounded-[24px] border border-slate-200 bg-white/80 p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Export</p>
+          <h2 className="text-xl font-semibold text-slate-900">
+            {platforms.length === 0 ? "Choose a preset" : `Ready to export ${platforms.length} file${platforms.length > 1 ? "s" : ""}`}
+          </h2>
+        </div>
+        <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700">
+          {platforms.length}
+        </div>
+      </div>
+
+      <p className="mt-3 text-sm text-slate-600">
+        Download the resized image directly or bundle your selection into a zip archive.
+      </p>
+
       <button
         disabled={platforms.length === 0 || isExporting}
         onClick={exportImages}
-        className="rounded-xl bg-black dark:bg-white text-white dark:text-black px-6 py-3 disabled:opacity-40 transition-opacity"
+        className="mt-5 inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
+        <Download className="h-4 w-4" />
         {isExporting
           ? "Exporting..."
           : platforms.length === 1
-          ? "Export Image"
-          : `Export ${platforms.length} Images`}
+          ? "Export image"
+          : `Export ${platforms.length} images`}
       </button>
 
-      {error && (
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-      )}
+      {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+      {!error && platforms.length === 0 ? (
+        <p className="mt-3 text-sm text-slate-500">Pick at least one preset to enable downloads.</p>
+      ) : null}
     </div>
   );
 }

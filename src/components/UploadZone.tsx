@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { UploadCloud } from "lucide-react";
+import { ImagePlus, UploadCloud } from "lucide-react";
 
 interface UploadZoneProps {
   onUpload: (file: File) => void;
@@ -8,15 +8,34 @@ interface UploadZoneProps {
 
 export default function UploadZone({ onUpload }: UploadZoneProps) {
   const [preview, setPreview] = useState<string | null>(null);
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   function handleFile(file: File) {
     if (!file.type.startsWith("image/")) {
+      setError("Please choose a valid image file.");
+      setPreview(null);
+      setSelectedFileName(null);
       return;
     }
 
-    const url = URL.createObjectURL(file);
+    if (file.size > 20 * 1024 * 1024) {
+      setError("This file is larger than 20MB. Please pick a smaller image.");
+      setPreview(null);
+      setSelectedFileName(null);
+      return;
+    }
+
+    const nextPreview = URL.createObjectURL(file);
+    setPreview((current) => {
+      if (current) {
+        URL.revokeObjectURL(current);
+      }
+      return nextPreview;
+    });
+    setSelectedFileName(file.name);
+    setError(null);
     onUpload(file);
-    setPreview(url);
   }
 
   useEffect(() => {
@@ -44,10 +63,10 @@ export default function UploadZone({ onUpload }: UploadZoneProps) {
     <div className="space-y-6">
       <div
         {...getRootProps()}
-        className={`cursor-pointer border-2 border-dashed rounded-xl p-12 text-center transition ${
+        className={`cursor-pointer rounded-[28px] border-2 border-dashed p-10 text-center transition sm:p-12 ${
           isDragActive
-            ? "border-blue-500 bg-blue-50 dark:bg-blue-950"
-            : "hover:bg-neutral-100 dark:hover:bg-neutral-900"
+            ? "border-sky-500 bg-sky-50"
+            : "border-slate-300 bg-white/80 hover:border-sky-400 hover:bg-slate-50"
         }`}
         role="button"
         tabIndex={0}
@@ -55,24 +74,32 @@ export default function UploadZone({ onUpload }: UploadZoneProps) {
       >
         <input {...getInputProps()} />
 
-        <UploadCloud className="mx-auto mb-4 h-12 w-12" aria-hidden="true" />
+        <UploadCloud className="mx-auto mb-4 h-12 w-12 text-sky-600" aria-hidden="true" />
 
-        <p className="text-lg font-medium">
+        <p className="text-lg font-semibold text-slate-900">
           {isDragActive ? "Drop your image here" : "Drop an image here"}
         </p>
+        <p className="mt-2 text-sm text-slate-600">or click to browse from your device</p>
+        <p className="mt-4 text-xs uppercase tracking-[0.24em] text-slate-500">
+          PNG · JPG · WEBP · SVG
+        </p>
 
-        <p className="text-sm opacity-60">or click to browse</p>
+        {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
       </div>
 
-      {preview && (
-        <div className="flex justify-center">
+      {preview ? (
+        <div className="rounded-[24px] border border-slate-200 bg-white/80 p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <ImagePlus className="h-4 w-4 text-sky-600" />
+            <span>{selectedFileName ?? "Uploaded image"}</span>
+          </div>
           <img
             src={preview}
             alt="Uploaded preview"
-            className="max-h-80 rounded-xl shadow-lg"
+            className="mt-4 max-h-80 w-full rounded-2xl object-contain shadow-lg"
           />
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

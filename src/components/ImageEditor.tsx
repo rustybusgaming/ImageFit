@@ -1,6 +1,7 @@
 import Cropper from "react-easy-crop";
 import { useState, useCallback } from "react";
 import type { Area } from "react-easy-crop";
+import { RotateCw, ScanSearch } from "lucide-react";
 
 interface Props {
   image: string;
@@ -19,9 +20,30 @@ export default function ImageEditor({ image, onCropComplete }: Props) {
     [onCropComplete]
   );
 
+  function resetView() {
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setRotation(0);
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="relative h-[500px] bg-black rounded-xl overflow-hidden">
+    <div className="rounded-[24px] border border-slate-200 bg-white/80 p-4 shadow-sm sm:p-6">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Preview</p>
+          <h2 className="text-xl font-semibold text-slate-900">Fine-tune your frame</h2>
+        </div>
+        <button
+          type="button"
+          onClick={resetView}
+          className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+        >
+          <RotateCw className="h-4 w-4" />
+          Reset view
+        </button>
+      </div>
+
+      <div className="relative h-[420px] overflow-hidden rounded-2xl bg-slate-950 sm:h-[520px]">
         <Cropper
           image={image}
           crop={crop}
@@ -35,37 +57,41 @@ export default function ImageEditor({ image, onCropComplete }: Props) {
         />
       </div>
 
-      <div className="space-y-3">
-        <label htmlFor="zoom-slider" className="block text-sm font-medium">
-          Zoom: {zoom.toFixed(1)}x
-        </label>
-        <input
-          id="zoom-slider"
-          type="range"
-          min="1"
-          max="3"
-          step="0.1"
-          value={zoom}
-          onChange={(e) => setZoom(Number(e.target.value))}
-          className="w-full"
-          aria-label="Adjust zoom level"
-        />
-      </div>
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <ScanSearch className="h-4 w-4 text-sky-600" />
+            <span>Zoom: {zoom.toFixed(1)}x</span>
+          </div>
+          <input
+            id="zoom-slider"
+            type="range"
+            min="1"
+            max="3"
+            step="0.1"
+            value={zoom}
+            onChange={(e) => setZoom(Number(e.target.value))}
+            className="w-full accent-sky-600"
+            aria-label="Adjust zoom level"
+          />
+        </div>
 
-      <div className="space-y-3">
-        <label htmlFor="rotation-slider" className="block text-sm font-medium">
-          Rotation: {rotation}°
-        </label>
-        <input
-          id="rotation-slider"
-          type="range"
-          min="0"
-          max="360"
-          value={rotation}
-          onChange={(e) => setRotation(Number(e.target.value))}
-          className="w-full"
-          aria-label="Adjust rotation angle"
-        />
+        <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <RotateCw className="h-4 w-4 text-sky-600" />
+            <span>Rotation: {rotation}°</span>
+          </div>
+          <input
+            id="rotation-slider"
+            type="range"
+            min="0"
+            max="360"
+            value={rotation}
+            onChange={(e) => setRotation(Number(e.target.value))}
+            className="w-full accent-sky-600"
+            aria-label="Adjust rotation angle"
+          />
+        </div>
       </div>
     </div>
   );
