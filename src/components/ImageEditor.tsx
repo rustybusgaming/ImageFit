@@ -1,24 +1,32 @@
 import Cropper from "react-easy-crop";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { Area } from "react-easy-crop";
-import { RotateCw, ScanSearch } from "lucide-react";
+import { Maximize2, RotateCw, ScanSearch } from "lucide-react";
+import type { ImageTransform } from "../lib/imageProcessor";
 
 interface Props {
   image: string;
-  onCropComplete?: (croppedArea: Area, croppedAreaPixels: Area) => void;
+  onChange: (transform: ImageTransform) => void;
 }
 
-export default function ImageEditor({ image, onCropComplete }: Props) {
+export default function ImageEditor({ image, onChange }: Props) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
+  const [cropPixels, setCropPixels] = useState<Area | null>(null);
 
   const handleCropComplete = useCallback(
-    (croppedArea: Area, croppedAreaPixels: Area) => {
-      onCropComplete?.(croppedArea, croppedAreaPixels);
+    (_croppedArea: Area, nextCropPixels: Area) => {
+      setCropPixels(nextCropPixels);
     },
-    [onCropComplete]
+    []
   );
+
+  useEffect(() => {
+    if (cropPixels) {
+      onChange({ crop: cropPixels, rotation });
+    }
+  }, [cropPixels, onChange, rotation]);
 
   function resetView() {
     setCrop({ x: 0, y: 0 });
@@ -30,8 +38,8 @@ export default function ImageEditor({ image, onCropComplete }: Props) {
     <div className="rounded-[24px] border border-slate-200 bg-white/80 p-4 shadow-sm sm:p-6">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Preview</p>
-          <h2 className="text-xl font-semibold text-slate-900">Fine-tune your frame</h2>
+          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Frame</p>
+          <h2 className="text-xl font-semibold text-slate-900">Position your subject</h2>
         </div>
         <button
           type="button"
@@ -43,7 +51,7 @@ export default function ImageEditor({ image, onCropComplete }: Props) {
         </button>
       </div>
 
-      <div className="relative h-[420px] overflow-hidden rounded-2xl bg-slate-950 sm:h-[520px]">
+      <div className="relative h-[380px] overflow-hidden rounded-2xl bg-slate-950 sm:h-[500px]">
         <Cropper
           image={image}
           crop={crop}
@@ -93,6 +101,10 @@ export default function ImageEditor({ image, onCropComplete }: Props) {
           />
         </div>
       </div>
+      <p className="mt-4 flex items-center gap-2 text-sm text-slate-500">
+        <Maximize2 className="h-4 w-4 text-slate-400" />
+        Your framing and rotation are applied to every export.
+      </p>
     </div>
   );
 }

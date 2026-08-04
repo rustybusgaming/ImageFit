@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 export function useImage() {
   const [image, setImage] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const objectUrlRef = useRef<string | null>(null);
 
   function revokeCurrentUrl() {
@@ -20,11 +21,13 @@ export function useImage() {
     const url = URL.createObjectURL(file);
     objectUrlRef.current = url;
     setImage(url);
+    setImageFile(file);
   }
 
   function clearImage() {
     revokeCurrentUrl();
     setImage(null);
+    setImageFile(null);
   }
 
   useEffect(() => {
@@ -35,6 +38,7 @@ export function useImage() {
 
   return {
     image,
+    imageFile,
     loadImage,
     clearImage,
   };

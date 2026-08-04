@@ -14,6 +14,30 @@ export interface PlatformPreset {
 
 
 export const platforms: PlatformPreset[] = [
+    {
+        id: "instagram-square",
+        platform: "Instagram",
+        name: "Square post",
+        width: 1080,
+        height: 1080,
+        format: "jpg"
+    },
+    {
+        id: "instagram-portrait",
+        platform: "Instagram",
+        name: "Portrait post",
+        width: 1080,
+        height: 1350,
+        format: "jpg"
+    },
+    {
+        id: "instagram-story",
+        platform: "Instagram",
+        name: "Story or Reel cover",
+        width: 1080,
+        height: 1920,
+        format: "jpg"
+    },
 
     {
         id: "discord-avatar",
@@ -42,6 +66,22 @@ export const platforms: PlatformPreset[] = [
         width: 500,
         height: 500,
         format: "png"
+    },
+    {
+        id: "linkedin-banner",
+        platform: "LinkedIn",
+        name: "Profile banner",
+        width: 1584,
+        height: 396,
+        format: "jpg"
+    },
+    {
+        id: "linkedin-post",
+        platform: "LinkedIn",
+        name: "Landscape post",
+        width: 1200,
+        height: 627,
+        format: "jpg"
     },
 
 
@@ -93,6 +133,29 @@ export const platforms: PlatformPreset[] = [
         height: 256,
         format: "png"
     },
-
+    {
+        id: "twitch-banner",
+        platform: "Twitch",
+        name: "Profile banner",
+        width: 1200,
+        height: 480,
+        format: "png"
+    },
+    {
+        id: "x-header",
+        platform: "X",
+        name: "Profile header",
+        width: 1500,
+        height: 500,
+        format: "jpg"
+    },
+    {
+        id: "tiktok-cover",
+        platform: "TikTok",
+        name: "Video cover",
+        width: 1080,
+        height: 1920,
+        format: "jpg"
+    },
 
 ];

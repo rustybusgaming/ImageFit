@@ -1,19 +1,27 @@
-import { useState } from "react";
-import { ArrowRight, CheckCircle2, Download, ImagePlus, RefreshCcw, Sparkles } from "lucide-react";
+import { useCallback, useState } from "react";
+import { ArrowRight, CheckCircle2, Download, ImagePlus, LockKeyhole, RefreshCcw, Sparkles } from "lucide-react";
 import UploadZone from "./components/UploadZone";
 import PlatformSelector from "./components/PlatformSelector";
 import type { PlatformPreset } from "./data/platforms";
 import ImageEditor from "./components/ImageEditor";
 import ExportPanel from "./components/ExportPanel";
+import ImageSquisher from "./components/ImageSquisher";
 import { useImage } from "./hooks/useImage";
+import type { ImageTransform } from "./lib/imageProcessor";
 
 export default function App() {
-  const { image, loadImage, clearImage } = useImage();
+  const { image, imageFile, loadImage, clearImage } = useImage();
   const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformPreset[]>([]);
+  const [transform, setTransform] = useState<ImageTransform>();
+
+  const handleTransformChange = useCallback((nextTransform: ImageTransform) => {
+    setTransform(nextTransform);
+  }, []);
 
   function handleReset() {
     clearImage();
     setSelectedPlatforms([]);
+    setTransform(undefined);
   }
 
   return (
@@ -26,9 +34,9 @@ export default function App() {
                 <Sparkles className="h-4 w-4" />
                 Resize once. Export everywhere.
               </div>
-              <h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl">ImageFit</h1>
+              <h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-6xl">ImageFit</h1>
               <p className="mt-3 text-lg text-slate-600">
-                Turn one source image into polished social-ready exports with a streamlined, polished workflow.
+                One perfect frame, every social size. Crop once, then export a clean, platform-ready bundle.
               </p>
             </div>
 
@@ -43,7 +51,7 @@ export default function App() {
             </button>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
+          <div className="mt-7 grid gap-4 md:grid-cols-3">
             {[
               { icon: ImagePlus, title: "Upload once", copy: "Drop in any JPG, PNG, or WebP file and begin editing instantly." },
               { icon: CheckCircle2, title: "Choose presets", copy: "Pick the exact social platform sizes you need for your workflow." },
@@ -63,14 +71,16 @@ export default function App() {
         ) : (
           <div className="grid gap-8 lg:grid-cols-[1.4fr_0.9fr]">
             <div className="space-y-6">
-              <ImageEditor image={image} />
+              <ImageEditor image={image} onChange={handleTransformChange} />
               <PlatformSelector onSelect={setSelectedPlatforms} />
 
               <div className="rounded-[24px] border border-slate-200 bg-white/80 p-5 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Selection</p>
-                    <h2 className="text-xl font-semibold text-slate-900">{selectedPlatforms.length} preset{selectedPlatforms.length === 1 ? "" : "s"} ready</h2>
+                    <h2 className="text-xl font-semibold text-slate-900">
+                      {selectedPlatforms.length === 0 ? "Build your export set" : `${selectedPlatforms.length} preset${selectedPlatforms.length === 1 ? "" : "s"} ready`}
+                    </h2>
                   </div>
                   <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700">
                     {selectedPlatforms.length > 0 ? `${selectedPlatforms.length} selected` : "None yet"}
@@ -97,7 +107,8 @@ export default function App() {
             </div>
 
             <div className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-              <ExportPanel image={image} platforms={selectedPlatforms} />
+              <ExportPanel image={image} platforms={selectedPlatforms} transform={transform} />
+              <ImageSquisher image={image} sourceFile={imageFile} />
 
               <div className="rounded-[24px] border border-slate-200 bg-slate-950 p-5 text-slate-100 shadow-sm">
                 <h3 className="text-lg font-semibold">What happens next</h3>
@@ -115,6 +126,10 @@ export default function App() {
                     Reuse the same source image whenever you need a fresh set of sizes.
                   </li>
                 </ul>
+              </div>
+              <div className="flex items-center gap-3 rounded-[24px] border border-sky-100 bg-sky-50 p-4 text-sm text-slate-600">
+                <LockKeyhole className="h-5 w-5 shrink-0 text-sky-600" />
+                <span>Your images stay on this device. Processing happens entirely in your browser.</span>
               </div>
             </div>
           </div>
