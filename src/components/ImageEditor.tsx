@@ -1,4 +1,5 @@
 import Cropper from "react-easy-crop";
+import "react-easy-crop/react-easy-crop.css";
 import { useState, useCallback, useEffect } from "react";
 import type { Area } from "react-easy-crop";
 import { Maximize2, RotateCw, ScanSearch } from "lucide-react";
