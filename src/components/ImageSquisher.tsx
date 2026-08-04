@@ -56,15 +56,15 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
   }
 
   return (
-    <section className="rounded-[24px] border border-fuchsia-200 bg-gradient-to-br from-fuchsia-50 via-white to-amber-50 p-5 shadow-sm">
+    <section className="border border-[#ff7448]/35 bg-[#1d1512] p-5 shadow-[0_16px_40px_-28px_rgba(0,0,0,0.9)]">
       <div className="flex items-start gap-3">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-fuchsia-600 text-white">
+        <div className="grid h-10 w-10 shrink-0 place-items-center bg-[#ff7448] text-[#21100b] shadow-[3px_3px_0_#d7ff47]">
           <Laugh className="h-5 w-5" />
         </div>
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-fuchsia-700">Image squish</p>
-          <h2 className="mt-1 text-xl font-semibold text-slate-900">Our in-house compressor</h2>
-          <p className="mt-1 text-sm text-slate-600">Compress the original image directly—no resizing preset needed.</p>
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#ff9a7b]">Compression bench</p>
+          <h2 className="mt-1 text-xl font-semibold text-[#fff5ee]">Original image squisher</h2>
+          <p className="mt-1 text-sm text-[#e8bbae]">Compress the original image directly—no resizing preset needed.</p>
         </div>
       </div>
 
@@ -74,12 +74,12 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
             key={preset.id}
             type="button"
             onClick={() => setPresetId(preset.id)}
-            className={`rounded-xl border p-3 text-left transition ${
-              presetId === preset.id ? "border-fuchsia-400 bg-white shadow-sm" : "border-fuchsia-100 bg-white/60 hover:border-fuchsia-300"
+            className={`border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
+              presetId === preset.id ? "border-[#ff7448] bg-[#2b1913] shadow-[3px_3px_0_#ff7448]" : "border-[#ff7448]/20 bg-[#211814] hover:border-[#ff7448]/60"
             }`}
           >
-            <span className="block text-sm font-semibold text-slate-900">{preset.label}</span>
-            <span className="mt-1 block text-xs leading-4 text-slate-600">{preset.description}</span>
+            <span className="block text-sm font-semibold text-[#fff5ee]">{preset.label}</span>
+            <span className="mt-1 block text-xs leading-4 text-[#e8bbae]">{preset.description}</span>
           </button>
         ))}
       </div>
@@ -88,14 +88,14 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
         type="button"
         disabled={isCompressing}
         onClick={squishImage}
-        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-fuchsia-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-fuchsia-800 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 bg-[#ff7448] px-5 py-3 text-sm font-bold text-[#21100b] transition hover:bg-[#ff9a7b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] disabled:cursor-not-allowed disabled:bg-[#6d392d] disabled:text-[#e8bbae]"
       >
         {isCompressing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shrink className="h-4 w-4" />}
         {isCompressing ? "Squishing..." : `Squish it: ${selectedPreset.label}`}
         {!isCompressing && <Download className="h-4 w-4" />}
       </button>
-      {result ? <p className="mt-3 text-sm font-medium text-emerald-700">{result}</p> : null}
-      {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+      {result ? <p className="mt-3 text-sm font-medium text-[#d7ff47]">{result}</p> : null}
+      {error ? <p className="mt-3 text-sm text-[#ffb39d]">{error}</p> : null}
     </section>
   );
 }

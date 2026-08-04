@@ -38,13 +38,13 @@ export default function UploadZone({ onUpload }: UploadZoneProps) {
   });
 
   return (
-    <section className="mx-auto w-full max-w-4xl">
+    <section className="mx-auto w-full max-w-5xl">
       <div
         {...getRootProps()}
-        className={`cursor-pointer rounded-[32px] border-2 border-dashed p-10 text-center shadow-[0_20px_60px_-30px_rgba(14,116,144,0.4)] transition sm:p-16 ${
+        className={`group relative cursor-pointer overflow-hidden border border-dashed p-10 text-center shadow-[0_24px_70px_-42px_rgba(0,0,0,0.95)] transition sm:p-16 ${
           isDragActive
-            ? "border-sky-500 bg-sky-50"
-            : "border-slate-300 bg-white/80 hover:border-sky-400 hover:bg-slate-50"
+            ? "border-[#d7ff47] bg-[#20251a]"
+            : "border-white/20 bg-[#151714] hover:border-[#d7ff47]/70 hover:bg-[#191c17]"
         }`}
         role="button"
         tabIndex={0}
@@ -52,27 +52,27 @@ export default function UploadZone({ onUpload }: UploadZoneProps) {
       >
         <input {...getInputProps()} />
 
-        <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-2xl bg-sky-100 text-sky-700">
+        <div className="mx-auto mb-5 grid h-16 w-16 place-items-center bg-[#d7ff47] text-[#141610] shadow-[5px_5px_0_#ff7448] transition-transform duration-200 group-hover:-translate-y-1">
           <UploadCloud className="h-8 w-8" aria-hidden="true" />
         </div>
 
-        <p className="text-2xl font-semibold tracking-tight text-slate-900">
+        <p className="text-2xl font-semibold tracking-[0.02em] text-[#f6f7f0]">
           {isDragActive ? "Drop your image here" : "Drop an image here"}
         </p>
-        <p className="mt-2 text-sm text-slate-600">or click to browse from your device</p>
-        <p className="mt-5 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+        <p className="mt-2 text-sm text-[#b7baaf]">or click to browse from your device</p>
+        <p className="mt-5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9ea296]">
           PNG · JPG · WEBP · GIF · SVG &nbsp;•&nbsp; Up to 20 MB
         </p>
 
-        {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
+        {error ? <p className="mt-4 text-sm text-[#ff9a7b]">{error}</p> : null}
       </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-4 text-sm text-slate-600">
-          <FileImage className="h-5 w-5 text-sky-600" />
+      <div className="grid border-x border-b border-white/10 bg-[#121310] sm:grid-cols-2">
+        <div className="flex items-center gap-3 border-b border-white/10 p-4 text-sm text-[#b7baaf] sm:border-b-0 sm:border-r">
+          <FileImage className="h-5 w-5 text-[#d7ff47]" />
           Select, crop, and rotate in one focused workspace.
         </div>
-        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-4 text-sm text-slate-600">
-          <ShieldCheck className="h-5 w-5 text-sky-600" />
+        <div className="flex items-center gap-3 p-4 text-sm text-[#b7baaf]">
+          <ShieldCheck className="h-5 w-5 text-[#d7ff47]" />
           Private by default — no image leaves your browser.
         </div>
       </div>

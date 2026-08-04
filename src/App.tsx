@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { ArrowRight, CheckCircle2, Download, ImagePlus, LockKeyhole, RefreshCcw, Sparkles } from "lucide-react";
+import { ArrowRight, Download, ImagePlus, LockKeyhole, RefreshCcw, Sparkles } from "lucide-react";
 import UploadZone from "./components/UploadZone";
 import PlatformSelector from "./components/PlatformSelector";
 import type { PlatformPreset } from "./data/platforms";
@@ -25,42 +25,46 @@ export default function App() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.16),_transparent_35%),linear-gradient(135deg,_#f8fbff_0%,_#f4f7fb_55%,_#eef4ff_100%)] text-slate-900">
-      <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
-        <header className="rounded-[28px] border border-slate-200/80 bg-white/80 p-6 shadow-[0_20px_60px_-24px_rgba(15,23,42,0.35)] backdrop-blur sm:p-8">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-2xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sm font-medium text-sky-700">
-                <Sparkles className="h-4 w-4" />
-                Resize once. Export everywhere.
+    <main className="min-h-screen bg-[#0c0d0c] bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:32px_32px] text-[#f4f4ed]">
+      <div className="mx-auto flex max-w-[1440px] flex-col gap-6 px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+        <header className="border border-white/10 bg-[#151714]/90 p-4 shadow-[0_20px_70px_-40px_rgba(0,0,0,0.9)] backdrop-blur sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 place-items-center bg-[#d7ff47] text-[#11120f] shadow-[4px_4px_0_#ff7448]">
+                <Sparkles className="h-5 w-5" aria-hidden="true" />
               </div>
-              <h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-6xl">ImageFit</h1>
-              <p className="mt-3 text-lg text-slate-600">
-                One perfect frame, every social size. Crop once, then export a clean, platform-ready bundle.
-              </p>
+              <div>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <h1 className="text-2xl font-bold tracking-[0.08em] text-[#f8f8f1]">IMAGEFIT</h1>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#a6aa9d]">Local image workstation</span>
+                </div>
+                <p className="mt-0.5 text-sm text-[#b7baaf]">Frame once. Output every format.</p>
+              </div>
             </div>
 
             <button
               type="button"
               onClick={handleReset}
               disabled={!image}
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 border border-white/15 bg-[#20231e] px-3 py-2 text-sm font-semibold text-[#e8eadf] transition hover:border-[#d7ff47] hover:text-[#d7ff47] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] focus-visible:ring-offset-2 focus-visible:ring-offset-[#151714] disabled:cursor-not-allowed disabled:opacity-40"
             >
               <RefreshCcw className="h-4 w-4" />
               Start over
             </button>
           </div>
 
-          <div className="mt-7 grid gap-4 md:grid-cols-3">
+          <div className="mt-5 grid border-t border-white/10 pt-4 sm:grid-cols-3">
             {[
-              { icon: ImagePlus, title: "Upload once", copy: "Drop in any JPG, PNG, or WebP file and begin editing instantly." },
-              { icon: CheckCircle2, title: "Choose presets", copy: "Pick the exact social platform sizes you need for your workflow." },
-              { icon: Download, title: "Export in bulk", copy: "Download a single file or bundle everything into a zip archive." },
+              { icon: ImagePlus, title: "01", copy: "Load a source file" },
+              { icon: Sparkles, title: "02", copy: "Compose and select" },
+              { icon: Download, title: "03", copy: "Build your exports" },
             ].map(({ icon: Icon, title, copy }) => (
-              <div key={title} className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-                <Icon className="h-5 w-5 text-sky-600" />
-                <h2 className="mt-3 font-semibold text-slate-900">{title}</h2>
-                <p className="mt-1 text-sm text-slate-600">{copy}</p>
+              <div key={title} className="flex items-center gap-3 py-2 sm:border-r sm:border-white/10 sm:px-4 sm:first:pl-0 sm:last:border-r-0">
+                <Icon className="h-4 w-4 shrink-0 text-[#d7ff47]" aria-hidden="true" />
+                <div>
+                  <span className="font-mono text-[10px] font-semibold tracking-[0.16em] text-[#ff9a7b]">{title}</span>
+                  <p className="text-sm font-medium text-[#d9dbd2]">{copy}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -69,37 +73,37 @@ export default function App() {
         {!image ? (
           <UploadZone onUpload={loadImage} />
         ) : (
-          <div className="grid gap-8 lg:grid-cols-[1.4fr_0.9fr]">
+          <div className="grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
             <div className="space-y-6">
               <ImageEditor image={image} onChange={handleTransformChange} />
               <PlatformSelector onSelect={setSelectedPlatforms} />
 
-              <div className="rounded-[24px] border border-slate-200 bg-white/80 p-5 shadow-sm">
+              <div className="border border-white/10 bg-[#151714] p-5 shadow-[0_16px_40px_-28px_rgba(0,0,0,0.9)]">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Selection</p>
-                    <h2 className="text-xl font-semibold text-slate-900">
+                    <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#a6aa9d]">Output queue</p>
+                    <h2 className="mt-1 text-xl font-semibold text-[#f4f4ed]">
                       {selectedPlatforms.length === 0 ? "Build your export set" : `${selectedPlatforms.length} preset${selectedPlatforms.length === 1 ? "" : "s"} ready`}
                     </h2>
                   </div>
-                  <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700">
+                  <div className="border border-[#d7ff47]/35 bg-[#20251a] px-3 py-1 font-mono text-xs font-semibold text-[#d7ff47]">
                     {selectedPlatforms.length > 0 ? `${selectedPlatforms.length} selected` : "None yet"}
                   </div>
                 </div>
 
                 {selectedPlatforms.length > 0 ? (
-                  <div className="mt-4 space-y-2">
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
                     {selectedPlatforms.map((platform) => (
-                      <div key={platform.id} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                        <span className="font-medium text-slate-900">{platform.platform} · {platform.name}</span>
-                        <span className="text-slate-600">
+                      <div key={platform.id} className="flex flex-wrap items-center justify-between gap-2 border border-white/10 bg-[#1b1e1a] px-3 py-2 text-sm">
+                        <span className="font-medium text-[#f0f1e9]">{platform.platform} · {platform.name}</span>
+                        <span className="font-mono text-xs text-[#aeb2a5]">
                           {platform.width}×{platform.height} · {platform.format.toUpperCase()}
                         </span>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-4 text-sm text-slate-600">
+                  <p className="mt-4 text-sm text-[#aeb2a5]">
                     Choose one or more presets to build your export bundle.
                   </p>
                 )}
@@ -110,25 +114,25 @@ export default function App() {
               <ExportPanel image={image} platforms={selectedPlatforms} transform={transform} />
               <ImageSquisher image={image} sourceFile={imageFile} />
 
-              <div className="rounded-[24px] border border-slate-200 bg-slate-950 p-5 text-slate-100 shadow-sm">
-                <h3 className="text-lg font-semibold">What happens next</h3>
-                <ul className="mt-3 space-y-2 text-sm text-slate-300">
+              <div className="border border-[#ff7448]/35 bg-[#241713] p-5 text-[#fff5ee] shadow-[0_16px_40px_-28px_rgba(0,0,0,0.9)]">
+                <h3 className="font-mono text-xs font-semibold uppercase tracking-[0.16em] text-[#ff9a7b]">Studio notes</h3>
+                <ul className="mt-3 space-y-2 text-sm text-[#f3c6b8]">
                   <li className="flex items-start gap-2">
-                    <ArrowRight className="mt-0.5 h-4 w-4 shrink-0" />
+                    <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-[#ff9a7b]" />
                     Preview the current crop and rotation before export.
                   </li>
                   <li className="flex items-start gap-2">
-                    <ArrowRight className="mt-0.5 h-4 w-4 shrink-0" />
+                    <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-[#ff9a7b]" />
                     Download each preset as its own file or as a zip bundle.
                   </li>
                   <li className="flex items-start gap-2">
-                    <ArrowRight className="mt-0.5 h-4 w-4 shrink-0" />
+                    <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-[#ff9a7b]" />
                     Reuse the same source image whenever you need a fresh set of sizes.
                   </li>
                 </ul>
               </div>
-              <div className="flex items-center gap-3 rounded-[24px] border border-sky-100 bg-sky-50 p-4 text-sm text-slate-600">
-                <LockKeyhole className="h-5 w-5 shrink-0 text-sky-600" />
+              <div className="flex items-center gap-3 border border-white/10 bg-[#151714] p-4 text-sm text-[#b7baaf]">
+                <LockKeyhole className="h-5 w-5 shrink-0 text-[#d7ff47]" />
                 <span>Your images stay on this device. Processing happens entirely in your browser.</span>
               </div>
             </div>

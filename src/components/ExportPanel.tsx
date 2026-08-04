@@ -69,24 +69,24 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
   }
 
   return (
-    <div className="rounded-[24px] border border-slate-200 bg-white/80 p-5 shadow-sm">
+    <div className="border border-white/10 bg-[#151714] p-5 shadow-[0_16px_40px_-28px_rgba(0,0,0,0.9)]">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Export</p>
-          <h2 className="text-xl font-semibold text-slate-900">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#a6aa9d]">Render settings</p>
+          <h2 className="mt-1 text-xl font-semibold text-[#f4f4ed]">
             {platforms.length === 0 ? "Choose a preset" : `Ready to export ${platforms.length} file${platforms.length > 1 ? "s" : ""}`}
           </h2>
         </div>
-        <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700">
+        <div className="border border-[#d7ff47]/35 bg-[#20251a] px-3 py-1 font-mono text-xs font-semibold text-[#d7ff47]">
           {platforms.length}
         </div>
       </div>
 
-      <p className="mt-3 text-sm text-slate-600">Files are generated locally in your browser. Nothing is uploaded.</p>
+      <p className="mt-3 text-sm text-[#aeb2a5]">Files are generated locally in your browser. Nothing is uploaded.</p>
 
-      <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <div className="flex items-center justify-between gap-3 text-sm font-medium text-slate-700">
-          <span className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4 text-sky-600" /> Compression</span>
+      <div className="mt-5 border border-white/10 bg-[#1b1e1a] p-4">
+        <div className="flex items-center justify-between gap-3 text-sm font-medium text-[#d9dbd2]">
+          <span className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4 text-[#d7ff47]" /> Compression</span>
           <span>{quality}%</span>
         </div>
         <div className="mt-3 grid grid-cols-3 gap-2">
@@ -99,8 +99,8 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
               key={preset.label}
               type="button"
               onClick={() => setQuality(preset.value)}
-              className={`rounded-lg border px-2 py-2 text-xs font-medium transition ${
-                quality === preset.value ? "border-sky-400 bg-sky-100 text-sky-800" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+              className={`border px-2 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1b1e1a] ${
+                quality === preset.value ? "border-[#d7ff47] bg-[#242a1c] text-[#d7ff47]" : "border-white/10 bg-[#151714] text-[#b7baaf] hover:border-white/30"
               }`}
             >
               {preset.label}
@@ -108,7 +108,7 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
           ))}
         </div>
         <input
-          className="mt-3 w-full accent-sky-600"
+          className="mt-3 w-full accent-[#d7ff47]"
           type="range"
           min="60"
           max="100"
@@ -116,11 +116,11 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
           onChange={(event) => setQuality(Number(event.target.value))}
           aria-label="Set JPEG and WebP compression quality"
         />
-        <p className="mt-2 text-xs text-slate-500">WebP at 65–82% is usually the smallest option. PNG preserves detail but is not compressed by this slider.</p>
+        <p className="mt-2 text-xs text-[#8f9389]">WebP at 65–82% is usually the smallest option. PNG preserves detail but is not compressed by this slider.</p>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <label htmlFor="export-format" className="text-sm font-medium text-slate-700">File format</label>
+      <div className="mt-4 border border-white/10 bg-[#1b1e1a] p-4">
+        <label htmlFor="export-format" className="text-sm font-medium text-[#d9dbd2]">File format</label>
         <select
           id="export-format"
           value={format}
@@ -131,7 +131,7 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
               setBackground("solid");
             }
           }}
-          className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-sky-400"
+          className="mt-2 w-full border border-white/10 bg-[#151714] px-3 py-2 text-sm text-[#f4f4ed] outline-none focus:border-[#d7ff47]"
         >
           <option value="jpg">JPEG — compatible and compact</option>
           <option value="webp">WebP — smallest modern files</option>
@@ -139,8 +139,8 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
         </select>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <p className="flex items-center gap-2 text-sm font-medium text-slate-700"><Palette className="h-4 w-4 text-sky-600" /> Space around your image</p>
+      <div className="mt-4 border border-white/10 bg-[#1b1e1a] p-4">
+        <p className="flex items-center gap-2 text-sm font-medium text-[#d9dbd2]"><Palette className="h-4 w-4 text-[#d7ff47]" /> Space around your image</p>
         <div className="mt-3 grid grid-cols-2 gap-2">
           {([
             ["cover", "Fill crop"],
@@ -154,8 +154,8 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
               type="button"
               disabled={mode === "transparent" && format === "jpg"}
               onClick={() => setBackground(mode)}
-              className={`rounded-lg border px-2 py-2 text-xs font-medium transition ${
-                background === mode ? "border-sky-400 bg-sky-100 text-sky-800" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+              className={`border px-2 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1b1e1a] ${
+                background === mode ? "border-[#d7ff47] bg-[#242a1c] text-[#d7ff47]" : "border-white/10 bg-[#151714] text-[#b7baaf] hover:border-white/30"
               } disabled:cursor-not-allowed disabled:opacity-40`}
             >
               {label}
@@ -163,15 +163,15 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
           ))}
         </div>
         {background === "solid" || background === "gradient" ? (
-          <label className="mt-3 flex items-center justify-between text-sm text-slate-600">
+          <label className="mt-3 flex items-center justify-between text-sm text-[#b7baaf]">
             Base colour
             <input type="color" value={backgroundColor} onChange={(event) => setBackgroundColor(event.target.value)} aria-label="Choose background colour" />
           </label>
         ) : null}
       </div>
 
-      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <p className="flex items-center gap-2 text-sm font-medium text-slate-700"><Sparkles className="h-4 w-4 text-sky-600" /> Make it fun</p>
+      <div className="mt-4 border border-white/10 bg-[#1b1e1a] p-4">
+        <p className="flex items-center gap-2 text-sm font-medium text-[#d9dbd2]"><Sparkles className="h-4 w-4 text-[#ff9a7b]" /> Colour treatment</p>
         <div className="mt-3 grid grid-cols-2 gap-2">
           {([
             ["none", "Original"],
@@ -183,8 +183,8 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
               key={nextEffect}
               type="button"
               onClick={() => setEffect(nextEffect)}
-              className={`rounded-lg border px-2 py-2 text-xs font-medium transition ${
-                effect === nextEffect ? "border-fuchsia-400 bg-fuchsia-50 text-fuchsia-800" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+              className={`border px-2 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1b1e1a] ${
+                effect === nextEffect ? "border-[#ff7448] bg-[#2b1913] text-[#ffb39d]" : "border-white/10 bg-[#151714] text-[#b7baaf] hover:border-white/30"
               }`}
             >
               {label}
@@ -196,7 +196,7 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
       <button
         disabled={platforms.length === 0 || isExporting}
         onClick={exportImages}
-        className="mt-5 inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-5 inline-flex w-full items-center justify-center gap-2 bg-[#d7ff47] px-5 py-3 text-sm font-bold text-[#141610] transition hover:bg-[#e4ff80] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] focus-visible:ring-offset-2 focus-visible:ring-offset-[#151714] disabled:cursor-not-allowed disabled:bg-[#3a4032] disabled:text-[#aeb2a5]"
       >
         {isExporting ? (
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -210,9 +210,9 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
           : `Export ${platforms.length} images`}
       </button>
 
-      {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+      {error ? <p className="mt-3 text-sm text-[#ff9a7b]">{error}</p> : null}
       {!error && platforms.length === 0 ? (
-        <p className="mt-3 text-sm text-slate-500">Pick at least one preset to enable downloads.</p>
+        <p className="mt-3 text-sm text-[#8f9389]">Pick at least one preset to enable downloads.</p>
       ) : null}
     </div>
   );

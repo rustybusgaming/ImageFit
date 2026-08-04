@@ -17,59 +17,84 @@ If you are developing a production application, we recommend updating the config
 
 ```js
 export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+  # ImageFit
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+  ImageFit is a browser-based image editor for preparing one source image for several social-media and profile-image formats. Upload an image, position the crop, choose the presets you need, and download individual files or a ZIP bundle.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+  All image editing and export work happens locally in the browser. Uploaded files are not sent to a server.
 
-```
+  ## Features
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+  - Upload JPG, PNG, WebP, GIF, or SVG images up to 20 MB.
+  - Crop, zoom, and rotate the source image.
+  - Export presets for Instagram, Discord, GitHub, LinkedIn, Open Collective, YouTube, Roblox, Twitch, X, and TikTok.
+  - Choose JPEG, PNG, or WebP output with adjustable quality.
+  - Choose a crop, blurred backdrop, solid colour, gradient, or transparent background where the output format supports it.
+  - Apply monochrome, warm, or colour-pop effects.
+  - Download one export directly or package several exports into a ZIP file.
+  - Compress the original image with size and quality presets.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+  ## Run Locally
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+  ### Prerequisites
 
-```
+  - Node.js 20 or later
+  - npm 10 or later, or pnpm 9 or later
+
+  ### Install and start
+
+  ```bash
+  pnpm install
+  pnpm dev
+  ```
+
+  Vite prints the local development URL when the server starts. To use npm instead:
+
+  ```bash
+  npm install
+  npm run dev
+  ```
+
+  ## Commands
+
+  ```bash
+  # Start the Vite development server
+  npm run dev
+
+  # Run ESLint
+  npm run lint
+
+  # Type-check and create a production build in dist/
+  npm run build
+
+  # Preview the production build locally
+  npm run preview
+  ```
+
+  ## How It Works
+
+  1. Upload an image from your device.
+  2. Adjust the crop, zoom, and rotation in the editor.
+  3. Select one or more platform presets.
+  4. Configure the output format, quality, background, and optional effect.
+  5. Export a single image or download all selected formats in `imagefit-export.zip`.
+
+  The Image Squish panel provides a separate quick-compression workflow for the original upload. It does not apply the editor crop or export settings.
+
+  ## Technology
+
+  - React and TypeScript
+  - Vite
+  - Tailwind CSS
+  - `react-easy-crop` for image positioning
+  - JSZip and FileSaver for batch downloads
+
+  ## Project Structure
+
+  ```text
+  src/
+    components/  User interface and image workflow controls
+    data/        Social-platform preset dimensions
+    hooks/       Upload and object-URL lifecycle handling
+    lib/         Canvas processing, downloads, and ZIP creation
+  ```
