@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Download, Laugh, Loader2, Shrink } from "lucide-react";
 import { compressImage } from "../lib/imageProcessor";
-import type { CompressionSettings, ImageEffect } from "../lib/imageProcessor";
+import type { CompressionSettings } from "../lib/imageProcessor";
 import { downloadBlob } from "../lib/download";
 
 interface Props {
