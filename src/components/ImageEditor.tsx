@@ -44,7 +44,7 @@ export default function ImageEditor({ image, onChange }: Props) {
         <button
           type="button"
           onClick={resetView}
-          className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+          className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
         >
           <RotateCw className="h-4 w-4" />
           Reset view
@@ -69,7 +69,7 @@ export default function ImageEditor({ image, onChange }: Props) {
         <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
             <ScanSearch className="h-4 w-4 text-sky-600" />
-            <span>Zoom: {zoom.toFixed(1)}x</span>
+            <label htmlFor="zoom-slider">Zoom: {zoom.toFixed(1)}x</label>
           </div>
           <input
             id="zoom-slider"
@@ -79,7 +79,7 @@ export default function ImageEditor({ image, onChange }: Props) {
             step="0.1"
             value={zoom}
             onChange={(e) => setZoom(Number(e.target.value))}
-            className="w-full accent-sky-600"
+            className="w-full accent-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
             aria-label="Adjust zoom level"
           />
         </div>
@@ -87,7 +87,7 @@ export default function ImageEditor({ image, onChange }: Props) {
         <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
             <RotateCw className="h-4 w-4 text-sky-600" />
-            <span>Rotation: {rotation}°</span>
+            <label htmlFor="rotation-slider">Rotation: {rotation}°</label>
           </div>
           <input
             id="rotation-slider"
@@ -96,7 +96,7 @@ export default function ImageEditor({ image, onChange }: Props) {
             max="360"
             value={rotation}
             onChange={(e) => setRotation(Number(e.target.value))}
-            className="w-full accent-sky-600"
+            className="w-full accent-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
             aria-label="Adjust rotation angle"
           />
         </div>
