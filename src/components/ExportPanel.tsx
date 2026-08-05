@@ -89,7 +89,7 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
     try {
       if (platforms.length === 1) {
         const blob = await resizeImage(image, platforms[0], transform, settings);
-        downloadBlob(blob, `${platforms[0].id}.${format}`);
+        await downloadBlob(blob, `${platforms[0].id}.${format}`);
       } else {
         const files: Array<{ blob: Blob; filename: string }> = [];
 

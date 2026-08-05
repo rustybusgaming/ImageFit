@@ -1,7 +1,48 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const { spawn, spawnSync } = require("node:child_process");
 const path = require("node:path");
 const fs = require("node:fs");
+
+const MEDIA_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".mp4", ".webm", ".mov", ".m4v", ".avi", ".mkv"]);
+let mainWindow = null;
+let pendingOpenPaths = [];
+
+function getSettingsPath() {
+  return path.join(app.getPath("userData"), "settings.json");
+}
+
+function readSettings() {
+  try {
+    return JSON.parse(fs.readFileSync(getSettingsPath(), "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function writeSettings(settings) {
+  fs.mkdirSync(path.dirname(getSettingsPath()), { recursive: true });
+  fs.writeFileSync(getSettingsPath(), JSON.stringify(settings, null, 2));
+}
+
+function getOutputDirectory() {
+  return readSettings().outputDirectory ?? path.join(app.getPath("downloads"), "ImageFit");
+}
+
+function isMediaPath(filePath) {
+  return MEDIA_EXTENSIONS.has(path.extname(filePath).toLowerCase());
+}
+
+function sendOpenPaths(paths) {
+  const mediaPaths = paths.filter(isMediaPath);
+  if (mediaPaths.length === 0) return;
+
+  if (mainWindow?.webContents) {
+    mainWindow.webContents.send("desktop:open-paths", mediaPaths);
+  } else {
+    pendingOpenPaths.push(...mediaPaths);
+  }
+}
 
 function getFfmpegPath() {
   if (app.isPackaged) {
@@ -76,7 +117,7 @@ function getAvailableVideoEncoders() {
 }
 
 function createWindow() {
-  const window = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1440,
     height: 960,
     minWidth: 960,
@@ -88,17 +129,28 @@ function createWindow() {
     },
   });
 
-  window.loadFile(path.join(__dirname, "..", "dist", "index.html"));
+  mainWindow.loadFile(path.join(__dirname, "..", "dist", "index.html"));
+  mainWindow.webContents.once("did-finish-load", () => {
+    if (pendingOpenPaths.length > 0) {
+      sendOpenPaths(pendingOpenPaths);
+      pendingOpenPaths = [];
+    }
+  });
 }
 
 app.whenReady().then(() => {
+  app.on("open-file", (event, filePath) => {
+    event.preventDefault();
+    sendOpenPaths([filePath]);
+  });
+
   ipcMain.handle("desktop:video-encode", async (event, payload) => {
     const ffmpegPath = getFfmpegPath();
     if (!ffmpegPath || !fs.existsSync(ffmpegPath)) {
       throw new Error("Bundled FFmpeg was not found. Reinstall ImageFit Desktop.");
     }
 
-    const outputDirectory = path.join(app.getPath("downloads"), "ImageFit");
+    const outputDirectory = getOutputDirectory();
     fs.mkdirSync(outputDirectory, { recursive: true });
     const extension = payload.format;
     const sourceName = path.basename(payload.inputPath, path.extname(payload.inputPath));
@@ -139,10 +191,75 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle("desktop:available-video-encoders", () => getAvailableVideoEncoders());
+  ipcMain.handle("desktop:get-output-directory", () => getOutputDirectory());
+  ipcMain.handle("desktop:choose-output-directory", async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: "Choose ImageFit output folder",
+      defaultPath: getOutputDirectory(),
+      properties: ["openDirectory", "createDirectory"],
+    });
+    if (result.canceled || !result.filePaths[0]) return getOutputDirectory();
+
+    const settings = readSettings();
+    settings.outputDirectory = result.filePaths[0];
+    writeSettings(settings);
+    return settings.outputDirectory;
+  });
+  ipcMain.handle("desktop:save-file", async (_event, { filename, bytes }) => {
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: "Save ImageFit export",
+      defaultPath: path.join(getOutputDirectory(), path.basename(filename)),
+    });
+    if (result.canceled || !result.filePath) return null;
+
+    fs.mkdirSync(path.dirname(result.filePath), { recursive: true });
+    fs.writeFileSync(result.filePath, Buffer.from(bytes));
+    return result.filePath;
+  });
+  ipcMain.handle("desktop:open-media-dialog", async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: "Open image or video",
+      properties: ["openFile", "multiSelections"],
+      filters: [{ name: "Media", extensions: [...MEDIA_EXTENSIONS].map((extension) => extension.slice(1)) }],
+    });
+    return result.canceled ? [] : readMediaFiles(result.filePaths);
+  });
+  ipcMain.handle("desktop:read-media-files", (_event, filePaths) => readMediaFiles(filePaths));
 
   createWindow();
+  if (app.isPackaged) {
+    autoUpdater.on("checking-for-update", () => mainWindow?.webContents.send("desktop:update-status", { state: "checking" }));
+    autoUpdater.on("update-available", (info) => mainWindow?.webContents.send("desktop:update-status", { state: "downloading", version: info.version }));
+    autoUpdater.on("update-downloaded", (info) => mainWindow?.webContents.send("desktop:update-status", { state: "ready", version: info.version }));
+    autoUpdater.on("error", () => mainWindow?.webContents.send("desktop:update-status", { state: "unavailable" }));
+    void autoUpdater.checkForUpdatesAndNotify();
+  }
   app.on("activate", () => BrowserWindow.getAllWindows().length === 0 && createWindow());
 });
+
+function readMediaFiles(filePaths) {
+  return filePaths.filter(isMediaPath).map((filePath) => ({
+    name: path.basename(filePath),
+    path: filePath,
+    bytes: fs.readFileSync(filePath),
+  }));
+}
+
+if (process.platform === "win32") {
+  const gotLock = app.requestSingleInstanceLock();
+  if (!gotLock) {
+    app.quit();
+  } else {
+    app.on("second-instance", (_event, commandLine) => {
+      const paths = commandLine.filter(isMediaPath);
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
+      }
+      sendOpenPaths(paths);
+    });
+  }
+}
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

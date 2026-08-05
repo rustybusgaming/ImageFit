@@ -79,7 +79,7 @@ export default defineConfig([
   ImageFit is available in two forms:
 
   - **Website:** GitHub Actions builds `dist/` and deploys it to GitHub Pages whenever `main` is updated.
-  - **Desktop:** Electron packages the same interface with native FFmpeg video processing. Download the Linux AppImage or Windows portable `.exe` from the GitHub Releases page.
+  - **Desktop:** Electron packages the same interface with native FFmpeg video processing. Download the Linux AppImage, Windows portable `.exe`, or Windows NSIS installer from the GitHub Releases page.
 
   ### Desktop development
 
@@ -97,6 +97,8 @@ export default defineConfig([
   ### Desktop video engines
 
   ImageFit Desktop detects available hardware encoders from its bundled FFmpeg build. H.264, H.265/HEVC, and AV1 can use NVIDIA NVENC, Intel Quick Sync, AMD AMF, or Apple VideoToolbox when the selected codec and installed graphics driver support them. Software FFmpeg remains available for every codec. The browser version always uses software FFmpeg.
+
+  The desktop control in the app header shows detected hardware encoders, selects the native output folder, opens media through the operating system, and reports available release updates. The Windows installer creates Start-menu and desktop shortcuts and registers supported image and video files to open in ImageFit.
 
   Push a version tag such as `v0.1.0` to build both desktop targets and publish their artifacts to a GitHub release:
 

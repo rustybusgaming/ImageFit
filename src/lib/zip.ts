@@ -1,5 +1,5 @@
 import JSZip from "jszip";
-import { saveAs } from "file-saver";
+import { downloadBlob } from "./download";
 
 export async function downloadZip(
   files: Array<{ blob: Blob; filename: string }>,
@@ -12,5 +12,5 @@ export async function downloadZip(
   }
 
   const content = await zip.generateAsync({ type: "blob" });
-  saveAs(content, zipName);
+  await downloadBlob(content, zipName);
 }

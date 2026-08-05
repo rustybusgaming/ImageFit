@@ -1,5 +1,12 @@
 interface Window {
   imageFitDesktop?: {
+    getOutputDirectory(): Promise<string>;
+    chooseOutputDirectory(): Promise<string>;
+    saveFile(filename: string, bytes: Uint8Array): Promise<string | null>;
+    openMediaDialog(): Promise<Array<{ name: string; path: string; bytes: Uint8Array }>>;
+    readMediaFiles(paths: string[]): Promise<Array<{ name: string; path: string; bytes: Uint8Array }>>;
+    onOpenPaths(callback: (paths: string[]) => void): () => void;
+    onUpdateStatus(callback: (status: { state: "checking" | "downloading" | "ready" | "unavailable"; version?: string }) => void): () => void;
     getFilePath(file: File): string;
     availableVideoEncoders(): Promise<string[]>;
     encodeVideo(

@@ -56,12 +56,18 @@ jobs:
             os: ubuntu-latest
             command: pnpm desktop:package:linux
             artifact: imagefit-desktop-linux
-            path: release/*.AppImage
+            path: |
+              release/*.AppImage
+              release/*.yml
+              release/*.blockmap
           - name: Windows
             os: windows-latest
             command: pnpm desktop:package:win
             artifact: imagefit-desktop-windows
-            path: release/*.exe
+            path: |
+              release/*.exe
+              release/*.yml
+              release/*.blockmap
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -105,5 +111,7 @@ jobs:
           files: |
             *.AppImage
             *.exe
+            *.yml
+            *.blockmap
           draft: false
           prerelease: false

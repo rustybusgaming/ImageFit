@@ -194,7 +194,7 @@ export default function VideoSquisher({ sourceFiles }: Props) {
       } else if (isDesktop && nativeOutputs.length > 0) {
         setResult(`${nativeOutputs.length} file${nativeOutputs.length === 1 ? "" : "s"} saved to Downloads\\ImageFit.`);
       } else if (files.length === 1) {
-        downloadBlob(files[0].blob, files[0].filename);
+        await downloadBlob(files[0].blob, files[0].filename);
         setResult(`1 ${format.toUpperCase()} file ready for Discord.`);
       } else if (files.length > 1) {
         await downloadZip(files, "imagefit-discord-videos.zip");

@@ -1,4 +1,11 @@
-export function downloadBlob(blob: Blob, filename: string): void {
+export async function downloadBlob(blob: Blob, filename: string): Promise<void> {
+  const desktop = window.imageFitDesktop;
+  if (desktop) {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    await desktop.saveFile(filename, bytes);
+    return;
+  }
+
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
 

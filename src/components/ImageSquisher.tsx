@@ -55,7 +55,7 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
       const sourceSize = sourceFile?.size;
       const saved = sourceSize ? Math.round((1 - blob.size / sourceSize) * 100) : null;
       setResult(saved !== null && saved > 0 ? `${formatBytes(blob.size)} · ${saved}% smaller` : `${formatBytes(blob.size)} ready`);
-      downloadBlob(blob, `imagefit-${selectedPreset.id}.${selectedPreset.settings.format}`);
+      await downloadBlob(blob, `imagefit-${selectedPreset.id}.${selectedPreset.settings.format}`);
     } catch (compressionError) {
       setError(compressionError instanceof Error ? compressionError.message : "Could not compress this image.");
     } finally {

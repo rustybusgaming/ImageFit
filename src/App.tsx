@@ -1,5 +1,6 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useState } from "react";
 import { ArrowRight, Download, FileImage, ImagePlus, LockKeyhole, RefreshCcw, Sparkles, X } from "lucide-react";
+import DesktopControls from "./components/DesktopControls";
 import UploadZone from "./components/UploadZone";
 import PlatformSelector from "./components/PlatformSelector";
 import type { PlatformPreset } from "./data/platforms";
@@ -12,11 +13,25 @@ import type { ImageTransform } from "./lib/imageProcessor";
 
 export default function App() {
   const { image, imageFile, isVideo, loadImage, clearImage } = useImage();
+  const isDesktop = typeof window !== "undefined" && Boolean(window.imageFitDesktop);
   const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformPreset[]>([]);
   const [transform, setTransform] = useState<ImageTransform>();
   const [videoQueue, setVideoQueue] = useState<File[]>([]);
   const [imageQueue, setImageQueue] = useState<File[]>([]);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const handleDesktopPaths = useEffectEvent((paths: string[]) => {
+    const desktop = window.imageFitDesktop;
+    if (!desktop) return;
+    void desktop.readMediaFiles(paths).then(loadDesktopFiles);
+  });
+
+  useEffect(() => {
+    if (!isDesktop) return;
+    const desktop = window.imageFitDesktop;
+    if (!desktop) return;
+
+    return desktop.onOpenPaths(handleDesktopPaths);
+  }, [isDesktop]);
 
   const handleTransformChange = useCallback((nextTransform: ImageTransform) => {
     setTransform(nextTransform);
@@ -50,6 +65,21 @@ export default function App() {
       setVideoQueue(videos);
       loadImage(videos[0]);
     }
+  }
+
+  function loadDesktopFiles(files: Array<{ name: string; bytes: Uint8Array }>) {
+    handleUpload(files.map((file) => {
+      const bytes = new Uint8Array(file.bytes.byteLength);
+      bytes.set(file.bytes);
+      return new File([bytes.buffer], file.name, { type: getMediaType(file.name) });
+    }));
+  }
+
+  async function openDesktopMedia() {
+    const desktop = window.imageFitDesktop;
+    if (!desktop) return;
+
+    loadDesktopFiles(await desktop.openMediaDialog());
   }
 
   function selectImage(index: number) {
@@ -101,15 +131,18 @@ export default function App() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleReset}
-              disabled={!image}
-              className="inline-flex items-center justify-center gap-2 border border-white/15 bg-[#20231e] px-3 py-2 text-sm font-semibold text-[#e8eadf] transition hover:border-[#d7ff47] hover:text-[#d7ff47] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] focus-visible:ring-offset-2 focus-visible:ring-offset-[#151714] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <RefreshCcw className="h-4 w-4" />
-              Start over
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              {isDesktop ? <DesktopControls onOpenMedia={() => void openDesktopMedia()} /> : null}
+              <button
+                type="button"
+                onClick={handleReset}
+                disabled={!image}
+                className="inline-flex items-center justify-center gap-2 border border-white/15 bg-[#20231e] px-3 py-2 text-sm font-semibold text-[#e8eadf] transition hover:border-[#d7ff47] hover:text-[#d7ff47] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] focus-visible:ring-offset-2 focus-visible:ring-offset-[#151714] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <RefreshCcw className="h-4 w-4" />
+                Start over
+              </button>
+            </div>
           </div>
 
           <div className="mt-5 grid border-t border-white/10 pt-4 sm:grid-cols-3">
@@ -235,4 +268,12 @@ export default function App() {
       </div>
     </main>
   );
+}
+
+function getMediaType(filename: string): string {
+  const extension = filename.split(".").pop()?.toLowerCase();
+  return ({
+    png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
+    mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime", m4v: "video/x-m4v", avi: "video/x-msvideo", mkv: "video/x-matroska",
+  }[extension ?? ""] ?? "application/octet-stream");
 }
