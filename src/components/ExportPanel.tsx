@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Download, Loader2, Palette, SlidersHorizontal, Sparkles } from "lucide-react";
 import { resizeImage } from "../lib/imageProcessor";
 import type { BackgroundMode, ExportSettings, ImageEffect, ImageTransform, OutputFormat } from "../lib/imageProcessor";
@@ -15,11 +15,16 @@ interface Props {
 export default function ExportPanel({ image, platforms, transform }: Props) {
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ key: string; url: string } | null>(null);
+  const [previewError, setPreviewError] = useState<{ key: string; message: string } | null>(null);
   const [quality, setQuality] = useState(92);
   const [format, setFormat] = useState<OutputFormat>("jpg");
   const [background, setBackground] = useState<BackgroundMode>("cover");
   const [backgroundColor, setBackgroundColor] = useState("#101828");
   const [effect, setEffect] = useState<ImageEffect>("none");
+  const previewUrlRef = useRef<string | null>(null);
+  const previewPlatform = platforms[0];
+  const previewKey = JSON.stringify({ image, platform: previewPlatform?.id, transform, quality, format, background, backgroundColor, effect });
 
   const settings: ExportSettings = {
     format,
@@ -28,6 +33,52 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
     backgroundColor,
     effect,
   };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!previewPlatform) {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
+      }
+      return;
+    }
+
+    const previewSettings: ExportSettings = {
+      format,
+      quality: quality / 100,
+      background: format === "jpg" && background === "transparent" ? "solid" : background,
+      backgroundColor,
+      effect,
+    };
+
+    void resizeImage(image, previewPlatform, transform, previewSettings)
+      .then((blob) => {
+        if (cancelled) return;
+
+        const nextUrl = URL.createObjectURL(blob);
+        if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = nextUrl;
+        setPreviewError(null);
+        setPreview({ key: previewKey, url: nextUrl });
+      })
+      .catch((previewFailure) => {
+        if (!cancelled) {
+          setPreviewError({ key: previewKey, message: previewFailure instanceof Error ? previewFailure.message : "Could not generate the preview." });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [background, backgroundColor, effect, format, image, previewKey, previewPlatform, quality, transform]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    };
+  }, []);
 
   async function exportImages() {
     if (platforms.length === 0) return;
@@ -83,6 +134,17 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
       </div>
 
       <p className="mt-3 text-sm text-[#aeb2a5]">Files are generated locally in your browser. Nothing is uploaded.</p>
+
+      <div className="mt-5 border border-white/10 bg-[#090a09] p-3">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-medium text-[#d9dbd2]">Export preview</p>
+          {previewPlatform ? <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[#a6aa9d]">{previewPlatform.width}x{previewPlatform.height}</span> : null}
+        </div>
+        <div className="mt-3 grid min-h-40 place-items-center overflow-hidden bg-[linear-gradient(45deg,#151714_25%,transparent_25%),linear-gradient(-45deg,#151714_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#151714_75%),linear-gradient(-45deg,transparent_75%,#151714_75%)] bg-[length:16px_16px] bg-[position:0_0,0_8px,8px_-8px,-8px_0px]">
+          {preview?.key === previewKey ? <img src={preview.url} alt="Current export preview" className="max-h-72 max-w-full object-contain" /> : previewPlatform ? <span className="text-sm text-[#aeb2a5]">Rendering preview...</span> : <span className="text-sm text-[#aeb2a5]">Choose a preset to preview it.</span>}
+        </div>
+        {previewError?.key === previewKey ? <p className="mt-3 text-sm text-[#ffb39d]">{previewError.message}</p> : null}
+      </div>
 
       <div className="mt-5 border border-white/10 bg-[#1b1e1a] p-4">
         <div className="flex items-center justify-between gap-3 text-sm font-medium text-[#d9dbd2]">

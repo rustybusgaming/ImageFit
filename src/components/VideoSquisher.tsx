@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
-import { AlertTriangle, Download, FileVideo, Loader2, Shrink } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, Download, FileVideo, Loader2, RotateCcw, Shrink, Square, X } from "lucide-react";
 import { downloadBlob } from "../lib/download";
 import { downloadZip } from "../lib/zip";
-import { compressVideoToTarget, inspectVideo } from "../lib/videoProcessor";
+import { cancelVideoEncoding, compressVideoToTarget, inspectVideo } from "../lib/videoProcessor";
 import type { VideoAudioMode, VideoCompatibility, VideoOutputFormat, VideoResolution } from "../lib/videoProcessor";
 
 interface Props {
@@ -28,6 +28,8 @@ const AUDIO_PRESETS: Array<{ id: VideoAudioMode; label: string }> = [
 
 const FRAME_RATES: Array<30 | 24 | 15> = [30, 24, 15];
 
+type QueueStatus = "waiting" | "encoding" | "ready" | "failed" | "cancelled";
+
 function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
@@ -35,6 +37,14 @@ function formatBytes(bytes: number): string {
 function getOutputFilename(file: File, presetId: string, format: VideoOutputFormat): string {
   const sourceName = file.name.replace(/\.[^.]+$/, "") || "video";
   return `${sourceName}-${presetId}.${format}`;
+}
+
+function getCompressionErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string" && error) return error;
+  if (typeof error === "object" && error && "message" in error && typeof error.message === "string") return error.message;
+
+  return "Could not compress this video.";
 }
 
 export default function VideoSquisher({ sourceFiles }: Props) {
@@ -49,7 +59,10 @@ export default function VideoSquisher({ sourceFiles }: Props) {
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [compatibility, setCompatibility] = useState<VideoCompatibility | null>(null);
-  const [queueStatus, setQueueStatus] = useState<Record<string, "waiting" | "encoding" | "ready" | "failed">>({});
+  const [queueStatus, setQueueStatus] = useState<Record<string, QueueStatus>>({});
+  const [queueProgress, setQueueProgress] = useState<Record<string, number>>({});
+  const [queueErrors, setQueueErrors] = useState<Record<string, string>>({});
+  const cancellationRef = useRef(false);
   const selectedPreset = DISCORD_PRESETS.find((preset) => preset.id === presetId) ?? DISCORD_PRESETS[0];
 
   useEffect(() => {
@@ -62,6 +75,8 @@ export default function VideoSquisher({ sourceFiles }: Props) {
       setIsInspecting(true);
       setCompatibility(null);
       setQueueStatus(Object.fromEntries(sourceFiles.map((file) => [file.name, "waiting"])));
+      setQueueProgress(Object.fromEntries(sourceFiles.map((file) => [file.name, 0])));
+      setQueueErrors({});
 
       try {
         const nextCompatibility = await inspectVideo(sourceFiles[0]);
@@ -78,38 +93,70 @@ export default function VideoSquisher({ sourceFiles }: Props) {
     };
   }, [sourceFiles]);
 
-  async function squishVideos() {
+  async function squishVideos(filesToEncode = sourceFiles) {
     setIsCompressing(true);
     setProgress(0);
     setResult(null);
     setError(null);
+    cancellationRef.current = false;
     const files: Array<{ blob: Blob; filename: string }> = [];
 
     try {
-      for (const sourceFile of sourceFiles) {
+      for (const sourceFile of filesToEncode) {
+        if (cancellationRef.current) break;
+
         setQueueStatus((current) => ({ ...current, [sourceFile.name]: "encoding" }));
+        setQueueProgress((current) => ({ ...current, [sourceFile.name]: 0 }));
+        setQueueErrors((current) => {
+          const next = { ...current };
+          delete next[sourceFile.name];
+          return next;
+        });
         try {
-          const blob = await compressVideoToTarget(sourceFile, { maxBytes: selectedPreset.maxBytes, resolution, audio, frameRate, format }, setProgress);
+          const blob = await compressVideoToTarget(sourceFile, { maxBytes: selectedPreset.maxBytes, resolution, audio, frameRate, format }, (nextProgress) => {
+            setProgress(nextProgress);
+            setQueueProgress((current) => ({ ...current, [sourceFile.name]: nextProgress }));
+          });
+          if (cancellationRef.current) break;
           files.push({ blob, filename: getOutputFilename(sourceFile, selectedPreset.id, format) });
           setQueueStatus((current) => ({ ...current, [sourceFile.name]: "ready" }));
+          setQueueProgress((current) => ({ ...current, [sourceFile.name]: 1 }));
         } catch (compressionError) {
+          if (cancellationRef.current) break;
+
+          const message = getCompressionErrorMessage(compressionError);
           setQueueStatus((current) => ({ ...current, [sourceFile.name]: "failed" }));
-          throw compressionError;
+          setQueueErrors((current) => ({ ...current, [sourceFile.name]: message }));
         }
       }
 
-      if (files.length === 1) {
+      if (cancellationRef.current) {
+        setQueueStatus((current) => Object.fromEntries(Object.entries(current).map(([name, status]) => [name, status === "encoding" || status === "waiting" ? "cancelled" : status])));
+        setResult("Encoding cancelled. Ready files remain available from completed runs.");
+      } else if (files.length === 1) {
         downloadBlob(files[0].blob, files[0].filename);
-      } else {
+        setResult(`1 ${format.toUpperCase()} file ready for Discord.`);
+      } else if (files.length > 1) {
         await downloadZip(files, "imagefit-discord-videos.zip");
+        setResult(`${files.length} ${format.toUpperCase()} files ready for Discord.`);
+      } else {
+        setError("No videos were encoded. Retry the failed files or change the export settings.");
       }
-
-      setResult(`${files.length} ${format.toUpperCase()} file${files.length === 1 ? "" : "s"} ready for Discord.`);
     } catch (compressionError) {
       setError(compressionError instanceof Error ? compressionError.message : "Could not compress this video.");
     } finally {
       setIsCompressing(false);
     }
+  }
+
+  function cancelEncoding() {
+    cancellationRef.current = true;
+    cancelVideoEncoding();
+  }
+
+  function clearFailures() {
+    setQueueErrors({});
+    setQueueStatus((current) => Object.fromEntries(Object.entries(current).map(([name, status]) => [name, status === "failed" ? "waiting" : status])));
   }
 
   return (
@@ -230,7 +277,7 @@ export default function VideoSquisher({ sourceFiles }: Props) {
       <button
         type="button"
         disabled={isCompressing || isInspecting}
-        onClick={squishVideos}
+        onClick={() => void squishVideos()}
         className="mt-4 inline-flex w-full items-center justify-center gap-2 bg-[#ff7448] px-5 py-3 text-sm font-bold text-[#21100b] transition hover:bg-[#ff9a7b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] disabled:cursor-not-allowed disabled:bg-[#6d392d] disabled:text-[#e8bbae]"
       >
         {isCompressing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shrink className="h-4 w-4" />}
@@ -238,13 +285,37 @@ export default function VideoSquisher({ sourceFiles }: Props) {
         {!isCompressing && <Download className="h-4 w-4" />}
       </button>
 
+      {isCompressing ? (
+        <button
+          type="button"
+          onClick={cancelEncoding}
+          className="mt-2 inline-flex w-full items-center justify-center gap-2 border border-[#ff7448]/60 bg-[#211814] px-5 py-2.5 text-sm font-semibold text-[#ffb39d] transition hover:border-[#ff9a7b] hover:text-[#fff5ee] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512]"
+        >
+          <Square className="h-4 w-4" />
+          Cancel encoding
+        </button>
+      ) : null}
+
       {result ? <p className="mt-3 text-sm font-medium text-[#d7ff47]">{result}</p> : null}
       {error ? <p className="mt-3 text-sm text-[#ffb39d]">{error}</p> : null}
-      {sourceFiles.length > 1 ? (
+      {sourceFiles.length > 0 ? (
         <ul className="mt-4 space-y-1 border-t border-[#ff7448]/20 pt-3 text-xs text-[#e8bbae]">
-          {sourceFiles.map((file) => <li key={file.name} className="flex justify-between gap-3"><span className="truncate">{file.name}</span><span className="shrink-0 uppercase">{queueStatus[file.name] ?? "waiting"}</span></li>)}
+          {sourceFiles.map((file) => {
+            const status = queueStatus[file.name] ?? "waiting";
+            const fileProgress = queueProgress[file.name] ?? 0;
+
+            return (
+              <li key={file.name} className="border border-[#ff7448]/20 bg-[#211814] p-2">
+                <div className="flex items-center justify-between gap-3"><span className="truncate">{file.name}</span><span className="shrink-0 uppercase">{status === "encoding" ? `${Math.round(fileProgress * 100)}%` : status}</span></div>
+                <div className="mt-2 h-1.5 overflow-hidden bg-[#3b251d]"><div className="h-full bg-[#ff7448] transition-[width]" style={{ width: `${fileProgress * 100}%` }} /></div>
+                {queueErrors[file.name] ? <p className="mt-2 text-[#ffb39d]">{queueErrors[file.name]}</p> : null}
+                {status === "failed" && !isCompressing ? <button type="button" onClick={() => void squishVideos([file])} className="mt-2 inline-flex items-center gap-1 font-semibold text-[#d7ff47] hover:text-[#e4ff80]"><RotateCcw className="h-3.5 w-3.5" />Retry this file</button> : null}
+              </li>
+            );
+          })}
         </ul>
       ) : null}
+      {Object.keys(queueErrors).length > 0 && !isCompressing ? <button type="button" onClick={clearFailures} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[#e8bbae] hover:text-[#fff5ee]"><X className="h-3.5 w-3.5" />Clear failed items</button> : null}
     </section>
   );
 }

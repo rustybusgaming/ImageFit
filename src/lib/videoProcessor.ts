@@ -1,5 +1,4 @@
-import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { fetchFile } from "@ffmpeg/util";
+import { FFmpeg, FFFSType } from "@ffmpeg/ffmpeg";
 import coreURL from "@ffmpeg/core?url";
 import wasmURL from "@ffmpeg/core/wasm?url";
 
@@ -62,6 +61,11 @@ async function getFFmpeg(): Promise<FFmpeg> {
   return instance;
 }
 
+export function cancelVideoEncoding(): void {
+  ffmpeg?.terminate();
+  ffmpeg = null;
+}
+
 function getVideoMetadata(file: File): Promise<{ duration: number; width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video");
@@ -79,6 +83,14 @@ function getVideoMetadata(file: File): Promise<{ duration: number; width: number
   });
 }
 
+async function readVideoFile(file: File): Promise<Uint8Array> {
+  try {
+    return new Uint8Array(await file.arrayBuffer());
+  } catch (error) {
+    throw new Error("The browser could not load this video into local memory. Try a smaller source file.", { cause: error });
+  }
+}
+
 export async function inspectVideo(file: File): Promise<VideoCompatibility> {
   const metadata = await getVideoMetadata(file);
   const warnings: string[] = [];
@@ -91,54 +103,7 @@ export async function inspectVideo(file: File): Promise<VideoCompatibility> {
     warnings.push("The browser could not determine this video's dimensions.");
   }
 
-  const encoder = await getFFmpeg();
-  const inputName = `inspect-${Date.now()}.${file.name.split(".").pop() ?? "video"}`;
-  const reportName = `inspect-${Date.now()}.json`;
-
-  try {
-    await encoder.writeFile(inputName, await fetchFile(file));
-    const exitCode = await encoder.ffprobe([
-      "-v", "error",
-      "-show_entries", "stream=codec_name,codec_type,color_transfer,pix_fmt",
-      "-of", "json",
-      inputName,
-      "-o", reportName,
-    ]);
-
-    if (exitCode !== 0) {
-      warnings.push("The local encoder could not inspect this file's streams. Try an MP4 with H.264 video.");
-      return { ...metadata, warnings };
-    }
-
-    const report = await encoder.readFile(reportName, "utf8");
-    if (typeof report !== "string") {
-      return { ...metadata, warnings };
-    }
-
-    const streams = JSON.parse(report).streams as Array<{ codec_name?: string; codec_type?: string; color_transfer?: string }>;
-    const videoStream = streams.find((stream) => stream.codec_type === "video");
-    const commonCodecs = ["h264", "hevc", "vp8", "vp9", "av1"];
-
-    if (videoStream?.codec_name && !commonCodecs.includes(videoStream.codec_name)) {
-      warnings.push(`Uncommon video codec detected: ${videoStream.codec_name}. Conversion may fail or take longer.`);
-    }
-
-    if (["smpte2084", "arib-std-b67"].includes(videoStream?.color_transfer ?? "")) {
-      warnings.push("HDR video detected. The export may appear less vibrant because it is encoded for standard displays.");
-    }
-
-    if (!streams.some((stream) => stream.codec_type === "audio")) {
-      warnings.push("This video has no audio stream.");
-    }
-
-    return { ...metadata, warnings };
-  } catch {
-    warnings.push("The local encoder could not inspect this file. Try an MP4 with H.264 video.");
-    return { ...metadata, warnings };
-  } finally {
-    await encoder.deleteFile(inputName).catch(() => undefined);
-    await encoder.deleteFile(reportName).catch(() => undefined);
-  }
+  return { ...metadata, warnings };
 }
 
 async function createWatermark(): Promise<Uint8Array> {
@@ -184,9 +149,12 @@ export async function compressVideoToTarget(
   }
 
   const encoder = await getFFmpeg();
-  const inputName = `input-${Date.now()}.${file.name.split(".").pop() ?? "video"}`;
+  const inputMountPoint = `/input-${Date.now()}`;
+  let inputName = `${inputMountPoint}/${file.name}`;
   const watermarkName = `watermark-${Date.now()}.png`;
   const outputName = `imagefit-discord-${Date.now()}.${settings.format}`;
+  let inputMounted = false;
+  let inputWritten = false;
   const usableBytes = Math.floor(settings.maxBytes * 0.96);
   const totalBitrate = Math.floor((usableBytes * 8) / duration);
   const audioBitrate = settings.audio === "keep" ? Math.min(96_000, Math.floor(totalBitrate * 0.2)) : settings.audio === "reduced" ? 48_000 : 0;
@@ -216,7 +184,14 @@ export async function compressVideoToTarget(
   encoder.on("log", logHandler);
 
   try {
-    await encoder.writeFile(inputName, await fetchFile(file));
+    const mounted = await encoder.mount(FFFSType.WORKERFS, { files: [file] }, inputMountPoint);
+    if (mounted) {
+      inputMounted = true;
+    } else {
+      inputName = `input-${Date.now()}.${file.name.split(".").pop() ?? "video"}`;
+      await encoder.writeFile(inputName, await readVideoFile(file));
+      inputWritten = true;
+    }
     await encoder.writeFile(watermarkName, await createWatermark());
     const exitCode = await encoder.exec([
       "-i", inputName,
@@ -249,7 +224,8 @@ export async function compressVideoToTarget(
   } finally {
     encoder.off("progress", progressHandler);
     encoder.off("log", logHandler);
-    await encoder.deleteFile(inputName).catch(() => undefined);
+    if (inputMounted) await encoder.unmount(inputMountPoint).catch(() => undefined);
+    if (inputWritten) await encoder.deleteFile(inputName).catch(() => undefined);
     await encoder.deleteFile(watermarkName).catch(() => undefined);
     await encoder.deleteFile(outputName).catch(() => undefined);
   }

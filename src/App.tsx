@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { ArrowRight, Download, ImagePlus, LockKeyhole, RefreshCcw, Sparkles } from "lucide-react";
+import { ArrowRight, Download, FileImage, ImagePlus, LockKeyhole, RefreshCcw, Sparkles, X } from "lucide-react";
 import UploadZone from "./components/UploadZone";
 import PlatformSelector from "./components/PlatformSelector";
 import type { PlatformPreset } from "./data/platforms";
@@ -15,6 +15,8 @@ export default function App() {
   const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformPreset[]>([]);
   const [transform, setTransform] = useState<ImageTransform>();
   const [videoQueue, setVideoQueue] = useState<File[]>([]);
+  const [imageQueue, setImageQueue] = useState<File[]>([]);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   const handleTransformChange = useCallback((nextTransform: ImageTransform) => {
     setTransform(nextTransform);
@@ -25,16 +27,60 @@ export default function App() {
     setSelectedPlatforms([]);
     setTransform(undefined);
     setVideoQueue([]);
+    setImageQueue([]);
+    setActiveImageIndex(0);
   }
 
   function handleUpload(files: File[]) {
+    const images = files.filter((file) => file.type.startsWith("image/"));
     const videos = files.filter((file) => file.type.startsWith("video/"));
-    const firstFile = videos.length > 0 ? videos[0] : files[0];
 
-    if (!firstFile) return;
+    if (images.length > 0) {
+      setImageQueue(images);
+      setActiveImageIndex(0);
+      setVideoQueue([]);
+      setTransform(undefined);
+      loadImage(images[0]);
+      return;
+    }
 
-    setVideoQueue(videos);
-    loadImage(firstFile);
+    if (videos.length > 0) {
+      setImageQueue([]);
+      setActiveImageIndex(0);
+      setVideoQueue(videos);
+      loadImage(videos[0]);
+    }
+  }
+
+  function selectImage(index: number) {
+    const nextImage = imageQueue[index];
+    if (!nextImage) return;
+
+    setActiveImageIndex(index);
+    setTransform(undefined);
+    loadImage(nextImage);
+  }
+
+  function removeImage(index: number) {
+    const nextQueue = imageQueue.filter((_, queueIndex) => queueIndex !== index);
+
+    if (nextQueue.length === 0) {
+      clearImage();
+      setImageQueue([]);
+      setActiveImageIndex(0);
+      setTransform(undefined);
+      return;
+    }
+
+    setImageQueue(nextQueue);
+    if (index === activeImageIndex) {
+      const nextIndex = Math.min(index, nextQueue.length - 1);
+      setActiveImageIndex(nextIndex);
+      setTransform(undefined);
+      loadImage(nextQueue[nextIndex]);
+    } else if (index < activeImageIndex) {
+      setActiveImageIndex(activeImageIndex - 1);
+    }
   }
 
   return (
@@ -99,7 +145,31 @@ export default function App() {
         ) : (
           <div className="grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
             <div className="space-y-6">
-              <ImageEditor image={image} onChange={handleTransformChange} />
+              {imageQueue.length > 1 ? (
+                <section className="border border-white/10 bg-[#151714] p-4 shadow-[0_16px_40px_-28px_rgba(0,0,0,0.9)]">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#a6aa9d]">Image queue</p>
+                      <h2 className="mt-1 text-lg font-semibold text-[#f4f4ed]">{imageQueue.length} images loaded</h2>
+                    </div>
+                    <span className="font-mono text-xs text-[#d7ff47]">{activeImageIndex + 1} / {imageQueue.length}</span>
+                  </div>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    {imageQueue.map((file, index) => (
+                      <div key={`${file.name}-${file.lastModified}-${index}`} className={`flex min-w-0 items-center gap-2 border p-2 ${index === activeImageIndex ? "border-[#d7ff47] bg-[#242a1c]" : "border-white/10 bg-[#1b1e1a]"}`}>
+                        <button type="button" onClick={() => selectImage(index)} className="flex min-w-0 flex-1 items-center gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47]">
+                          <FileImage className="h-4 w-4 shrink-0 text-[#d7ff47]" />
+                          <span className="truncate text-sm font-medium text-[#f0f1e9]">{file.name}</span>
+                        </button>
+                        <button type="button" onClick={() => removeImage(index)} className="grid h-7 w-7 shrink-0 place-items-center text-[#aeb2a5] transition hover:bg-[#3a201a] hover:text-[#ff9a7b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448]" aria-label={`Remove ${file.name} from the image queue`}>
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+              <ImageEditor key={imageFile ? `${imageFile.name}-${imageFile.lastModified}` : image} image={image} onChange={handleTransformChange} />
               <PlatformSelector onSelect={setSelectedPlatforms} />
 
               <div className="border border-white/10 bg-[#151714] p-5 shadow-[0_16px_40px_-28px_rgba(0,0,0,0.9)]">
