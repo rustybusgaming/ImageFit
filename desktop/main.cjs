@@ -4,9 +4,17 @@ const path = require("node:path");
 const fs = require("node:fs");
 
 function getFfmpegPath() {
-  return app.isPackaged
-    ? path.join(process.resourcesPath, "ffmpeg", "ffmpeg.exe")
-    : require("ffmpeg-static");
+  if (app.isPackaged) {
+    const binaryName = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
+    const bundledPath = path.join(process.resourcesPath, "ffmpeg", binaryName);
+    if (fs.existsSync(bundledPath)) {
+      fs.chmodSync(bundledPath, 0o755);
+      return bundledPath;
+    }
+    return null;
+  }
+
+  return require("ffmpeg-static");
 }
 
 function parseTimestamp(value) {

@@ -7,8 +7,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:desktop": "tsc -b && vite build --base=./",
-    "desktop": "npm run build:desktop && electron .",
-    "desktop:package": "npm run build:desktop && electron-builder --win portable",
+    "desktop": "pnpm run build:desktop && electron .",
+    "desktop:package": "pnpm run build:desktop && electron-builder --publish never",
+    "desktop:package:linux": "pnpm run build:desktop && electron-builder --linux appimage --publish never",
+    "desktop:package:win": "pnpm run build:desktop && electron-builder --win portable --publish never",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -16,6 +18,9 @@
   "build": {
     "appId": "com.imagefit.desktop",
     "productName": "ImageFit",
+    "directories": {
+      "output": "release"
+    },
     "files": [
       "dist/**/*",
       "desktop/**/*",
@@ -23,12 +28,18 @@
     ],
     "extraResources": [
       {
-        "from": "node_modules/ffmpeg-static/ffmpeg.exe",
-        "to": "ffmpeg/ffmpeg.exe"
+        "from": "node_modules/ffmpeg-static/ffmpeg",
+        "to": "ffmpeg/ffmpeg"
       }
     ],
     "win": {
       "target": "portable"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Utility"
     }
   },
   "dependencies": {

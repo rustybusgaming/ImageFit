@@ -1,0 +1,5 @@
+allowBuilds:
+  electron-winstaller: true
+  ffmpeg-static: true
+minimumReleaseAgeExclude:
+  - electron@43.3.0
