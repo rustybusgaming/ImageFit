@@ -115,12 +115,20 @@ export async function compressVideoToTarget(
   const videoBitrate = Math.max(100_000, totalBitrate - audioBitrate);
 
   const progressHandler = ({ progress }: { progress: number }) => onProgress(Math.min(1, Math.max(0, progress)));
+  const encoderLogs: string[] = [];
+  const logHandler = ({ message }: { message: string }) => {
+    encoderLogs.push(message);
+    if (encoderLogs.length > 12) {
+      encoderLogs.shift();
+    }
+  };
   encoder.on("progress", progressHandler);
+  encoder.on("log", logHandler);
 
   try {
     await encoder.writeFile(inputName, await fetchFile(file));
     await encoder.writeFile(watermarkName, await createWatermark());
-    await encoder.exec([
+    const exitCode = await encoder.exec([
       "-i", inputName,
       "-i", watermarkName,
       "-filter_complex", `[0:v]scale=-2:min(${VIDEO_HEIGHTS[resolution]}\\,ih)[scaled];[scaled][1:v]overlay=W-w-24:H-h-24[video]`,
@@ -137,6 +145,11 @@ export async function compressVideoToTarget(
       outputName,
     ]);
 
+    if (exitCode !== 0) {
+      const diagnostic = encoderLogs.findLast((message) => message.trim().length > 0);
+      throw new Error(diagnostic ? `Could not encode this video: ${diagnostic}` : "Could not encode this video. Try a smaller file or a different video format.");
+    }
+
     const output = await encoder.readFile(outputName);
     if (typeof output === "string") {
       throw new Error("Video encoder returned an invalid output.");
@@ -152,6 +165,7 @@ export async function compressVideoToTarget(
     return result;
   } finally {
     encoder.off("progress", progressHandler);
+    encoder.off("log", logHandler);
     await encoder.deleteFile(inputName).catch(() => undefined);
     await encoder.deleteFile(watermarkName).catch(() => undefined);
     await encoder.deleteFile(outputName).catch(() => undefined);
