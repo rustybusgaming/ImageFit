@@ -78,11 +78,11 @@
 
   The Windows release job signs installers automatically when the repository has `WINDOWS_CERTIFICATE_BASE64` (a base64-encoded code-signing certificate) and `WINDOWS_CERTIFICATE_PASSWORD` secrets. Without those secrets, releases still build but Windows may show SmartScreen warnings.
 
-  Push a version tag such as `v0.1.0` to build both desktop targets and publish their artifacts to a GitHub release:
+  Push a version tag such as `v1.0.0` to build both desktop targets and publish their artifacts to a GitHub release:
 
   ```bash
-  git tag v0.1.0
-  git push origin v0.1.0
+  git tag v1.0.0
+  git push origin v1.0.0
   ```
 
   ## How It Works

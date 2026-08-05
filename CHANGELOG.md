@@ -2,7 +2,7 @@
 
 All notable changes to ImageFit are documented here. Desktop release notes are also generated from merged pull requests and their labels.
 
-## Unreleased
+## 1.0.0
 
 ### Added
 
@@ -14,8 +14,3 @@ All notable changes to ImageFit are documented here. Desktop release notes are a
 
 - The website remains browser-only: desktop controls and native integrations activate only in Electron.
 
-## 0.1.0
-
-### Added
-
-- Initial ImageFit web and desktop release workflow.
