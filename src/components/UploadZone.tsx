@@ -3,28 +3,27 @@ import { useDropzone } from "react-dropzone";
 import { FileImage, FileVideo, UploadCloud } from "lucide-react";
 
 interface UploadZoneProps {
-  onUpload: (file: File) => void;
+  onUpload: (files: File[]) => void;
 }
 
 export default function UploadZone({ onUpload }: UploadZoneProps) {
   const [error, setError] = useState<string | null>(null);
 
-  function handleFile(file: File) {
-    const isImage = file.type.startsWith("image/");
-    const isVideo = file.type.startsWith("video/");
-    if (!isImage && !isVideo) {
+  function handleFiles(files: File[]) {
+    const invalidFile = files.find((file) => !file.type.startsWith("image/") && !file.type.startsWith("video/"));
+    if (invalidFile) {
       setError("Please choose a valid image or video file.");
       return;
     }
 
-    const maxSize = isVideo ? 3 * 1024 * 1024 * 1024 : 50 * 1024 * 1024;
-    if (file.size > maxSize) {
-      setError(`This ${isVideo ? "video" : "image"} is larger than ${isVideo ? "3 GB" : "50 MB"}.`);
+    const oversizedFile = files.find((file) => file.size > (file.type.startsWith("video/") ? 3 * 1024 * 1024 * 1024 : 50 * 1024 * 1024));
+    if (oversizedFile) {
+      setError(`This ${oversizedFile.type.startsWith("video/") ? "video" : "image"} is larger than ${oversizedFile.type.startsWith("video/") ? "3 GB" : "50 MB"}.`);
       return;
     }
 
     setError(null);
-    onUpload(file);
+    onUpload(files);
   }
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -32,11 +31,10 @@ export default function UploadZone({ onUpload }: UploadZoneProps) {
       "image/*": [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"],
       "video/*": [".mp4", ".webm", ".mov", ".m4v"],
     },
-    multiple: false,
+    multiple: true,
     onDrop: (acceptedFiles) => {
-      const file = acceptedFiles[0];
-      if (file) {
-        handleFile(file);
+      if (acceptedFiles.length > 0) {
+        handleFiles(acceptedFiles);
       }
     },
   });
@@ -61,7 +59,7 @@ export default function UploadZone({ onUpload }: UploadZoneProps) {
         </div>
 
         <p className="text-2xl font-semibold tracking-[0.02em] text-[#f6f7f0]">
-          {isDragActive ? "Drop your media here" : "Drop an image or video here"}
+          {isDragActive ? "Drop your media here" : "Drop images or videos here"}
         </p>
         <p className="mt-2 text-sm text-[#b7baaf]">or click to browse from your device</p>
         <p className="mt-5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9ea296]">
@@ -73,7 +71,7 @@ export default function UploadZone({ onUpload }: UploadZoneProps) {
       <div className="grid border-x border-b border-white/10 bg-[#121310] sm:grid-cols-2">
         <div className="flex items-center gap-3 border-b border-white/10 p-4 text-sm text-[#b7baaf] sm:border-b-0 sm:border-r">
           <FileImage className="h-5 w-5 text-[#d7ff47]" />
-          Crop images or fit videos to Discord's upload limits.
+          Crop images or queue videos for Discord upload limits.
         </div>
         <div className="flex items-center gap-3 p-4 text-sm text-[#b7baaf]">
           <FileVideo className="h-5 w-5 text-[#d7ff47]" />

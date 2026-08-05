@@ -6,6 +6,23 @@ import wasmURL from "@ffmpeg/core/wasm?url";
 let ffmpeg: FFmpeg | null = null;
 
 export type VideoResolution = "1080p" | "720p" | "480p";
+export type VideoAudioMode = "keep" | "reduced" | "mute";
+export type VideoOutputFormat = "mp4" | "gif";
+
+export interface VideoExportSettings {
+  maxBytes: number;
+  resolution: VideoResolution;
+  audio: VideoAudioMode;
+  frameRate: 30 | 24 | 15;
+  format: VideoOutputFormat;
+}
+
+export interface VideoCompatibility {
+  duration: number;
+  width: number;
+  height: number;
+  warnings: string[];
+}
 
 const VIDEO_HEIGHTS: Record<VideoResolution, number> = {
   "1080p": 1080,
@@ -45,14 +62,14 @@ async function getFFmpeg(): Promise<FFmpeg> {
   return instance;
 }
 
-function getVideoDuration(file: File): Promise<number> {
+function getVideoMetadata(file: File): Promise<{ duration: number; width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video");
     const url = URL.createObjectURL(file);
 
     video.onloadedmetadata = () => {
       URL.revokeObjectURL(url);
-      resolve(video.duration);
+      resolve({ duration: video.duration, width: video.videoWidth, height: video.videoHeight });
     };
     video.onerror = () => {
       URL.revokeObjectURL(url);
@@ -60,6 +77,68 @@ function getVideoDuration(file: File): Promise<number> {
     };
     video.src = url;
   });
+}
+
+export async function inspectVideo(file: File): Promise<VideoCompatibility> {
+  const metadata = await getVideoMetadata(file);
+  const warnings: string[] = [];
+
+  if (file.size > 1024 * 1024 * 1024) {
+    warnings.push("Files over 1 GB may exceed browser memory during local encoding.");
+  }
+
+  if (metadata.width === 0 || metadata.height === 0) {
+    warnings.push("The browser could not determine this video's dimensions.");
+  }
+
+  const encoder = await getFFmpeg();
+  const inputName = `inspect-${Date.now()}.${file.name.split(".").pop() ?? "video"}`;
+  const reportName = `inspect-${Date.now()}.json`;
+
+  try {
+    await encoder.writeFile(inputName, await fetchFile(file));
+    const exitCode = await encoder.ffprobe([
+      "-v", "error",
+      "-show_entries", "stream=codec_name,codec_type,color_transfer,pix_fmt",
+      "-of", "json",
+      inputName,
+      "-o", reportName,
+    ]);
+
+    if (exitCode !== 0) {
+      warnings.push("The local encoder could not inspect this file's streams. Try an MP4 with H.264 video.");
+      return { ...metadata, warnings };
+    }
+
+    const report = await encoder.readFile(reportName, "utf8");
+    if (typeof report !== "string") {
+      return { ...metadata, warnings };
+    }
+
+    const streams = JSON.parse(report).streams as Array<{ codec_name?: string; codec_type?: string; color_transfer?: string }>;
+    const videoStream = streams.find((stream) => stream.codec_type === "video");
+    const commonCodecs = ["h264", "hevc", "vp8", "vp9", "av1"];
+
+    if (videoStream?.codec_name && !commonCodecs.includes(videoStream.codec_name)) {
+      warnings.push(`Uncommon video codec detected: ${videoStream.codec_name}. Conversion may fail or take longer.`);
+    }
+
+    if (["smpte2084", "arib-std-b67"].includes(videoStream?.color_transfer ?? "")) {
+      warnings.push("HDR video detected. The export may appear less vibrant because it is encoded for standard displays.");
+    }
+
+    if (!streams.some((stream) => stream.codec_type === "audio")) {
+      warnings.push("This video has no audio stream.");
+    }
+
+    return { ...metadata, warnings };
+  } catch {
+    warnings.push("The local encoder could not inspect this file. Try an MP4 with H.264 video.");
+    return { ...metadata, warnings };
+  } finally {
+    await encoder.deleteFile(inputName).catch(() => undefined);
+    await encoder.deleteFile(reportName).catch(() => undefined);
+  }
 }
 
 async function createWatermark(): Promise<Uint8Array> {
@@ -95,11 +174,10 @@ async function createWatermark(): Promise<Uint8Array> {
 
 export async function compressVideoToTarget(
   file: File,
-  maxBytes: number,
-  resolution: VideoResolution,
+  settings: VideoExportSettings,
   onProgress: (progress: number) => void
 ): Promise<Blob> {
-  const duration = await getVideoDuration(file);
+  const { duration } = await getVideoMetadata(file);
 
   if (!Number.isFinite(duration) || duration <= 0) {
     throw new Error("This video does not have a usable duration.");
@@ -108,11 +186,23 @@ export async function compressVideoToTarget(
   const encoder = await getFFmpeg();
   const inputName = `input-${Date.now()}.${file.name.split(".").pop() ?? "video"}`;
   const watermarkName = `watermark-${Date.now()}.png`;
-  const outputName = `imagefit-discord-${Date.now()}.mp4`;
-  const usableBytes = Math.floor(maxBytes * 0.96);
+  const outputName = `imagefit-discord-${Date.now()}.${settings.format}`;
+  const usableBytes = Math.floor(settings.maxBytes * 0.96);
   const totalBitrate = Math.floor((usableBytes * 8) / duration);
-  const audioBitrate = Math.min(96_000, Math.floor(totalBitrate * 0.2));
+  const audioBitrate = settings.audio === "keep" ? Math.min(96_000, Math.floor(totalBitrate * 0.2)) : settings.audio === "reduced" ? 48_000 : 0;
   const videoBitrate = Math.max(100_000, totalBitrate - audioBitrate);
+  const filter = `[0:v]fps=${settings.frameRate},scale=-2:min(${VIDEO_HEIGHTS[settings.resolution]}\\,ih)[scaled];[scaled][1:v]overlay=W-w-24:H-h-24[video]`;
+  const encodingArgs = settings.format === "gif"
+    ? ["-loop", "0"]
+    : [
+        "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-b:v", `${Math.floor(videoBitrate / 1000)}k`,
+        "-maxrate", `${Math.floor(videoBitrate / 1000)}k`,
+        "-bufsize", `${Math.floor((videoBitrate * 2) / 1000)}k`,
+        ...(settings.audio === "mute" ? ["-an"] : ["-c:a", "aac", "-b:a", `${Math.floor(audioBitrate / 1000)}k`]),
+        "-movflags", "+faststart",
+      ];
 
   const progressHandler = ({ progress }: { progress: number }) => onProgress(Math.min(1, Math.max(0, progress)));
   const encoderLogs: string[] = [];
@@ -131,17 +221,10 @@ export async function compressVideoToTarget(
     const exitCode = await encoder.exec([
       "-i", inputName,
       "-i", watermarkName,
-      "-filter_complex", `[0:v]scale=-2:min(${VIDEO_HEIGHTS[resolution]}\\,ih)[scaled];[scaled][1:v]overlay=W-w-24:H-h-24[video]`,
+      "-filter_complex", filter,
       "-map", "[video]",
-      "-map", "0:a?",
-      "-c:v", "libx264",
-      "-preset", "veryfast",
-      "-b:v", `${Math.floor(videoBitrate / 1000)}k`,
-      "-maxrate", `${Math.floor(videoBitrate / 1000)}k`,
-      "-bufsize", `${Math.floor((videoBitrate * 2) / 1000)}k`,
-      "-c:a", "aac",
-      "-b:a", `${Math.floor(audioBitrate / 1000)}k`,
-      "-movflags", "+faststart",
+      ...(settings.format === "mp4" && settings.audio !== "mute" ? ["-map", "0:a?"] : []),
+      ...encodingArgs,
       outputName,
     ]);
 
@@ -157,8 +240,8 @@ export async function compressVideoToTarget(
 
     const videoData = new Uint8Array(output.byteLength);
     videoData.set(output);
-    const result = new Blob([videoData.buffer], { type: "video/mp4" });
-    if (result.size > maxBytes) {
+    const result = new Blob([videoData.buffer], { type: settings.format === "gif" ? "image/gif" : "video/mp4" });
+    if (result.size > settings.maxBytes) {
       throw new Error("This video could not be reduced to the selected file-size limit.");
     }
 

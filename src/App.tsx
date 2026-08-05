@@ -14,6 +14,7 @@ export default function App() {
   const { image, imageFile, isVideo, loadImage, clearImage } = useImage();
   const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformPreset[]>([]);
   const [transform, setTransform] = useState<ImageTransform>();
+  const [videoQueue, setVideoQueue] = useState<File[]>([]);
 
   const handleTransformChange = useCallback((nextTransform: ImageTransform) => {
     setTransform(nextTransform);
@@ -23,6 +24,17 @@ export default function App() {
     clearImage();
     setSelectedPlatforms([]);
     setTransform(undefined);
+    setVideoQueue([]);
+  }
+
+  function handleUpload(files: File[]) {
+    const videos = files.filter((file) => file.type.startsWith("video/"));
+    const firstFile = videos.length > 0 ? videos[0] : files[0];
+
+    if (!firstFile) return;
+
+    setVideoQueue(videos);
+    loadImage(firstFile);
   }
 
   return (
@@ -72,7 +84,7 @@ export default function App() {
         </header>
 
         {!image ? (
-          <UploadZone onUpload={loadImage} />
+          <UploadZone onUpload={handleUpload} />
         ) : isVideo && imageFile ? (
           <div className="grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
             <section className="border border-white/10 bg-[#151714] p-5 shadow-[0_16px_40px_-28px_rgba(0,0,0,0.9)]">
@@ -81,7 +93,7 @@ export default function App() {
               <video className="mt-5 max-h-[640px] w-full bg-[#090a09]" controls src={image} />
             </section>
             <aside className="lg:sticky lg:top-6 lg:self-start">
-              <VideoSquisher sourceFile={imageFile} />
+              <VideoSquisher sourceFiles={videoQueue.length > 0 ? videoQueue : [imageFile]} />
             </aside>
           </div>
         ) : (
