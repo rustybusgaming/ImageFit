@@ -36,6 +36,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Run tests
+        run: pnpm test
+
       - name: Type check and build web app
         run: pnpm build
 
@@ -86,6 +89,9 @@ jobs:
 
       - name: Build desktop app
         run: ${{ matrix.command }}
+        env:
+          CSC_LINK: ${{ matrix.name == 'Windows' && secrets.WINDOWS_CERTIFICATE_BASE64 || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.name == 'Windows' && secrets.WINDOWS_CERTIFICATE_PASSWORD || '' }}
 
       - name: Upload desktop artifact
         uses: actions/upload-artifact@v4
@@ -115,3 +121,4 @@ jobs:
             *.blockmap
           draft: false
           prerelease: false
+          generate_release_notes: true

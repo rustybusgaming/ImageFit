@@ -7,6 +7,7 @@ interface Window {
     readMediaFiles(paths: string[]): Promise<Array<{ name: string; path: string; bytes: Uint8Array }>>;
     onOpenPaths(callback: (paths: string[]) => void): () => void;
     onUpdateStatus(callback: (status: { state: "checking" | "downloading" | "ready" | "unavailable"; version?: string }) => void): () => void;
+    installUpdate(): Promise<boolean>;
     getFilePath(file: File): string;
     availableVideoEncoders(): Promise<string[]>;
     encodeVideo(

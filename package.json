@@ -15,12 +15,14 @@
     "desktop:package:linux": "pnpm run build:desktop && electron-builder --linux appimage --publish never",
     "desktop:package:win": "pnpm run build:desktop && electron-builder --win nsis portable --publish never",
     "lint": "eslint .",
+    "test": "node --test test/**/*.test.cjs",
     "preview": "vite preview"
   },
   "main": "desktop/main.cjs",
   "build": {
     "appId": "com.imagefit.desktop",
     "productName": "ImageFit",
+    "icon": "build/icon.svg",
     "publish": [
       {
         "provider": "github",

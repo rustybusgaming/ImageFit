@@ -3,10 +3,12 @@ const { autoUpdater } = require("electron-updater");
 const { spawn, spawnSync } = require("node:child_process");
 const path = require("node:path");
 const fs = require("node:fs");
+const { assertVideoPayload, getOutputFilename } = require("./video-config.cjs");
 
 const MEDIA_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".mp4", ".webm", ".mov", ".m4v", ".avi", ".mkv"]);
 let mainWindow = null;
 let pendingOpenPaths = [];
+let updateReady = false;
 
 function getSettingsPath() {
   return path.join(app.getPath("userData"), "settings.json");
@@ -145,6 +147,7 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle("desktop:video-encode", async (event, payload) => {
+    assertVideoPayload(payload);
     const ffmpegPath = getFfmpegPath();
     if (!ffmpegPath || !fs.existsSync(ffmpegPath)) {
       throw new Error("Bundled FFmpeg was not found. Reinstall ImageFit Desktop.");
@@ -152,9 +155,7 @@ app.whenReady().then(() => {
 
     const outputDirectory = getOutputDirectory();
     fs.mkdirSync(outputDirectory, { recursive: true });
-    const extension = payload.format;
-    const sourceName = path.basename(payload.inputPath, path.extname(payload.inputPath));
-    const outputPath = path.join(outputDirectory, `${sourceName}-${payload.presetId}-${payload.codec}${payload.encoder === "software" ? "" : `-${payload.encoder}`}.${extension}`);
+    const outputPath = path.join(outputDirectory, getOutputFilename(payload.inputPath, payload));
     const usableBytes = Math.floor(payload.maxBytes * 0.96);
     const totalBitrate = Math.floor((usableBytes * 8) / payload.duration);
     const audioBitrate = payload.audio === "keep" ? Math.min(96_000, Math.floor(totalBitrate * 0.2)) : payload.audio === "reduced" ? 48_000 : 0;
@@ -225,12 +226,20 @@ app.whenReady().then(() => {
     return result.canceled ? [] : readMediaFiles(result.filePaths);
   });
   ipcMain.handle("desktop:read-media-files", (_event, filePaths) => readMediaFiles(filePaths));
+  ipcMain.handle("desktop:install-update", () => {
+    if (!app.isPackaged || !updateReady) return false;
+    autoUpdater.quitAndInstall();
+    return true;
+  });
 
   createWindow();
   if (app.isPackaged) {
     autoUpdater.on("checking-for-update", () => mainWindow?.webContents.send("desktop:update-status", { state: "checking" }));
     autoUpdater.on("update-available", (info) => mainWindow?.webContents.send("desktop:update-status", { state: "downloading", version: info.version }));
-    autoUpdater.on("update-downloaded", (info) => mainWindow?.webContents.send("desktop:update-status", { state: "ready", version: info.version }));
+    autoUpdater.on("update-downloaded", (info) => {
+      updateReady = true;
+      mainWindow?.webContents.send("desktop:update-status", { state: "ready", version: info.version });
+    });
     autoUpdater.on("error", () => mainWindow?.webContents.send("desktop:update-status", { state: "unavailable" }));
     void autoUpdater.checkForUpdatesAndNotify();
   }

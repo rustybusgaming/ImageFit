@@ -1,0 +1,25 @@
+changelog:
+  categories:
+    - title: New Features
+      labels:
+        - feature
+        - enhancement
+    - title: Desktop
+      labels:
+        - desktop
+        - windows
+    - title: Fixes
+      labels:
+        - bug
+        - fix
+    - title: Documentation
+      labels:
+        - documentation
+    - title: Other Changes
+      labels:
+        - "*"
+  exclude:
+    labels:
+      - skip-changelog
+    authors:
+      - github-actions[bot]

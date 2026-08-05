@@ -100,6 +100,8 @@ export default defineConfig([
 
   The desktop control in the app header shows detected hardware encoders, selects the native output folder, opens media through the operating system, and reports available release updates. The Windows installer creates Start-menu and desktop shortcuts and registers supported image and video files to open in ImageFit.
 
+  The Windows release job signs installers automatically when the repository has `WINDOWS_CERTIFICATE_BASE64` (a base64-encoded code-signing certificate) and `WINDOWS_CERTIFICATE_PASSWORD` secrets. Without those secrets, releases still build but Windows may show SmartScreen warnings.
+
   Push a version tag such as `v0.1.0` to build both desktop targets and publish their artifacts to a GitHub release:
 
   ```bash
