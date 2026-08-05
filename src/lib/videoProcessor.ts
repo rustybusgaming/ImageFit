@@ -6,8 +6,9 @@ let ffmpeg: FFmpeg | null = null;
 
 export type VideoResolution = "1080p" | "720p" | "480p";
 export type VideoAudioMode = "keep" | "reduced" | "mute";
-export type VideoOutputFormat = "mp4" | "gif";
-export type VideoCodec = "h264" | "h265" | "av1";
+export type VideoOutputFormat = "mp4" | "webm" | "mov" | "avi" | "ogv" | "gif";
+export type VideoCodec = "h264" | "h265" | "av1" | "vp8" | "vp9" | "mpeg4" | "prores" | "dnxhd" | "mjpeg" | "theora";
+export type VideoEncoderEngine = "software" | "nvenc" | "qsv" | "amf" | "videotoolbox";
 
 export interface VideoExportSettings {
   maxBytes: number;
@@ -16,6 +17,7 @@ export interface VideoExportSettings {
   frameRate: 30 | 24 | 15;
   format: VideoOutputFormat;
   codec: VideoCodec;
+  encoder: VideoEncoderEngine;
 }
 
 export interface VideoCompatibility {
@@ -35,7 +37,35 @@ const VIDEO_ENCODERS: Record<VideoCodec, { name: string; args: string[] }> = {
   h264: { name: "H.264", args: ["-c:v", "libx264", "-preset", "veryfast"] },
   h265: { name: "H.265/HEVC", args: ["-c:v", "libx265", "-preset", "ultrafast", "-tag:v", "hvc1"] },
   av1: { name: "AV1", args: ["-c:v", "libaom-av1", "-cpu-used", "8", "-row-mt", "1"] },
+  vp8: { name: "VP8", args: ["-c:v", "libvpx", "-deadline", "good", "-cpu-used", "4"] },
+  vp9: { name: "VP9", args: ["-c:v", "libvpx-vp9", "-deadline", "good", "-cpu-used", "4"] },
+  mpeg4: { name: "MPEG-4 Part 2", args: ["-c:v", "mpeg4", "-q:v", "4"] },
+  prores: { name: "ProRes", args: ["-c:v", "prores_ks", "-profile:v", "3"] },
+  dnxhd: { name: "DNxHD", args: ["-c:v", "dnxhd", "-profile:v", "dnxhr_hq"] },
+  mjpeg: { name: "MJPEG", args: ["-c:v", "mjpeg", "-q:v", "3"] },
+  theora: { name: "Theora", args: ["-c:v", "libtheora", "-q:v", "7"] },
 };
+
+function getAudioArgs(format: VideoOutputFormat, audio: VideoAudioMode, audioBitrate: number): string[] {
+  if (audio === "mute" || format === "gif") return ["-an"];
+
+  const bitrate = `${Math.floor(audioBitrate / 1000)}k`;
+  if (format === "webm") return ["-c:a", "libopus", "-b:a", bitrate];
+  if (format === "ogv") return ["-c:a", "libvorbis", "-b:a", bitrate];
+  if (format === "avi") return ["-c:a", "libmp3lame", "-b:a", bitrate];
+  return ["-c:a", "aac", "-b:a", bitrate];
+}
+
+function getVideoMimeType(format: VideoOutputFormat): string {
+  return {
+    mp4: "video/mp4",
+    webm: "video/webm",
+    mov: "video/quicktime",
+    avi: "video/x-msvideo",
+    ogv: "video/ogg",
+    gif: "image/gif",
+  }[format];
+}
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) {
@@ -177,8 +207,8 @@ export async function compressVideoToTarget(
         "-b:v", `${Math.floor(videoBitrate / 1000)}k`,
         "-maxrate", `${Math.floor(videoBitrate / 1000)}k`,
         "-bufsize", `${Math.floor((videoBitrate * 2) / 1000)}k`,
-        ...(settings.audio === "mute" ? ["-an"] : ["-c:a", "aac", "-b:a", `${Math.floor(audioBitrate / 1000)}k`]),
-        "-movflags", "+faststart",
+        ...getAudioArgs(settings.format, settings.audio, audioBitrate),
+        ...(settings.format === "mp4" ? ["-movflags", "+faststart"] : []),
       ];
 
   const progressHandler = ({ progress }: { progress: number }) => onProgress(Math.min(1, Math.max(0, progress)));
@@ -227,7 +257,7 @@ export async function compressVideoToTarget(
 
     const videoData = new Uint8Array(output.byteLength);
     videoData.set(output);
-    const result = new Blob([videoData.buffer], { type: settings.format === "gif" ? "image/gif" : "video/mp4" });
+    const result = new Blob([videoData.buffer], { type: getVideoMimeType(settings.format) });
     if (result.size > settings.maxBytes) {
       throw new Error("This video could not be reduced to the selected file-size limit.");
     }

@@ -9,7 +9,7 @@ ipcRenderer.on("desktop:video-progress", (_event, { jobId, progress }) => {
 
 contextBridge.exposeInMainWorld("imageFitDesktop", {
   getFilePath: (file) => webUtils.getPathForFile(file),
-  nvencSupported: () => ipcRenderer.invoke("desktop:nvenc-supported"),
+  availableVideoEncoders: () => ipcRenderer.invoke("desktop:available-video-encoders"),
   encodeVideo: (payload, onProgress) => {
     const jobId = randomUUID();
     progressCallbacks.set(jobId, onProgress);

@@ -3,8 +3,8 @@ import { AlertTriangle, Download, FileVideo, Loader2, RotateCcw, Shrink, Square,
 import { downloadBlob } from "../lib/download";
 import { downloadZip } from "../lib/zip";
 import { cancelVideoEncoding, compressVideoToTarget, inspectVideo } from "../lib/videoProcessor";
-import type { VideoAudioMode, VideoCodec, VideoCompatibility, VideoOutputFormat, VideoResolution } from "../lib/videoProcessor";
-import { compressDesktopVideoToTarget, getNvencSupport, isDesktopApp } from "../lib/desktopVideoProcessor";
+import type { VideoAudioMode, VideoCodec, VideoCompatibility, VideoEncoderEngine, VideoOutputFormat, VideoResolution } from "../lib/videoProcessor";
+import { compressDesktopVideoToTarget, getAvailableVideoEncoders, isDesktopApp } from "../lib/desktopVideoProcessor";
 
 interface Props {
   sourceFiles: File[];
@@ -29,11 +29,42 @@ const AUDIO_PRESETS: Array<{ id: VideoAudioMode; label: string }> = [
 
 const FRAME_RATES: Array<30 | 24 | 15> = [30, 24, 15];
 
-const CODEC_PRESETS: Array<{ id: VideoCodec; label: string; description: string }> = [
-  { id: "h264", label: "H.264", description: "Best compatibility" },
-  { id: "h265", label: "H.265", description: "Smaller, newer devices" },
-  { id: "av1", label: "AV1", description: "Smallest, slowest" },
+const FORMAT_PRESETS: Array<{ id: VideoOutputFormat; label: string }> = [
+  { id: "mp4", label: "MP4" },
+  { id: "webm", label: "WebM" },
+  { id: "mov", label: "MOV" },
+  { id: "avi", label: "AVI" },
+  { id: "ogv", label: "OGV" },
+  { id: "gif", label: "GIF" },
 ];
+
+const CODEC_PRESETS: Array<{ id: VideoCodec; format: Exclude<VideoOutputFormat, "gif">; label: string; description: string }> = [
+  { id: "h264", format: "mp4", label: "H.264", description: "Best compatibility" },
+  { id: "h265", format: "mp4", label: "H.265/HEVC", description: "Smaller, newer devices" },
+  { id: "av1", format: "mp4", label: "AV1", description: "Smallest, slowest" },
+  { id: "vp8", format: "webm", label: "VP8", description: "Legacy WebM" },
+  { id: "vp9", format: "webm", label: "VP9", description: "Efficient WebM" },
+  { id: "mpeg4", format: "mp4", label: "MPEG-4", description: "Legacy MP4" },
+  { id: "prores", format: "mov", label: "ProRes", description: "Editing quality" },
+  { id: "dnxhd", format: "mov", label: "DNxHD", description: "Editing quality" },
+  { id: "mjpeg", format: "avi", label: "MJPEG", description: "Frame-based video" },
+  { id: "theora", format: "ogv", label: "Theora", description: "Open OGV" },
+];
+
+const ENCODER_PRESETS: Array<{ id: VideoEncoderEngine; label: string; description: string }> = [
+  { id: "software", label: "Software FFmpeg", description: "Works on every desktop" },
+  { id: "nvenc", label: "NVIDIA NVENC", description: "NVIDIA GPU" },
+  { id: "qsv", label: "Intel Quick Sync", description: "Intel GPU" },
+  { id: "amf", label: "AMD AMF", description: "AMD GPU" },
+  { id: "videotoolbox", label: "Apple VideoToolbox", description: "Apple hardware" },
+];
+
+const HARDWARE_ENCODERS: Record<Exclude<VideoEncoderEngine, "software">, Partial<Record<VideoCodec, string>>> = {
+  nvenc: { h264: "h264_nvenc", h265: "hevc_nvenc", av1: "av1_nvenc" },
+  qsv: { h264: "h264_qsv", h265: "hevc_qsv", av1: "av1_qsv" },
+  amf: { h264: "h264_amf", h265: "hevc_amf", av1: "av1_amf" },
+  videotoolbox: { h264: "h264_videotoolbox", h265: "hevc_videotoolbox" },
+};
 
 type QueueStatus = "waiting" | "encoding" | "ready" | "failed" | "cancelled";
 
@@ -61,8 +92,8 @@ export default function VideoSquisher({ sourceFiles }: Props) {
   const [frameRate, setFrameRate] = useState<30 | 24 | 15>(30);
   const [format, setFormat] = useState<VideoOutputFormat>("mp4");
   const [codec, setCodec] = useState<VideoCodec>("h264");
-  const [nvencSupported, setNvencSupported] = useState(false);
-  const [useNvenc, setUseNvenc] = useState(false);
+  const [encoder, setEncoder] = useState<VideoEncoderEngine>("software");
+  const [availableEncoders, setAvailableEncoders] = useState<string[]>([]);
   const [isCompressing, setIsCompressing] = useState(false);
   const [isInspecting, setIsInspecting] = useState(true);
   const [progress, setProgress] = useState(0);
@@ -79,7 +110,7 @@ export default function VideoSquisher({ sourceFiles }: Props) {
   useEffect(() => {
     if (!isDesktop) return;
 
-    void getNvencSupport().then(setNvencSupported).catch(() => setNvencSupported(false));
+    void getAvailableVideoEncoders().then(setAvailableEncoders).catch(() => setAvailableEncoders([]));
   }, [isDesktop]);
 
   useEffect(() => {
@@ -131,9 +162,9 @@ export default function VideoSquisher({ sourceFiles }: Props) {
           return next;
         });
         try {
-          const settings = { maxBytes: selectedPreset.maxBytes, resolution, audio, frameRate, format, codec };
+          const settings = { maxBytes: selectedPreset.maxBytes, resolution, audio, frameRate, format, codec, encoder };
           if (isDesktop) {
-            const output = await compressDesktopVideoToTarget(sourceFile, settings, selectedPreset.id, useNvenc, (nextProgress) => {
+            const output = await compressDesktopVideoToTarget(sourceFile, settings, selectedPreset.id, (nextProgress) => {
               setProgress(nextProgress);
               setQueueProgress((current) => ({ ...current, [sourceFile.name]: nextProgress }));
             });
@@ -283,35 +314,43 @@ export default function VideoSquisher({ sourceFiles }: Props) {
             ))}
           </div>
           <p className="mt-3 text-sm font-medium text-[#fff5ee]">File type</p>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            {(["mp4", "gif"] as VideoOutputFormat[]).map((value) => (
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            {FORMAT_PRESETS.map((preset) => (
               <button
-                key={value}
+                key={preset.id}
                 type="button"
                 onClick={() => {
-                  setFormat(value);
-                  if (value === "gif") setAudio("mute");
+                  setFormat(preset.id);
+                  if (preset.id === "gif") {
+                    setAudio("mute");
+                  } else {
+                    setCodec(CODEC_PRESETS.find((codecPreset) => codecPreset.format === preset.id)?.id ?? "h264");
+                    setEncoder("software");
+                  }
                 }}
                 className={`border px-2 py-2 text-xs font-semibold uppercase transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
-                  value === format ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
+                  preset.id === format ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
                 }`}
               >
-                {value}
+                {preset.label}
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      {format === "mp4" ? (
+      {format !== "gif" ? (
         <div className="mt-4">
           <p className="text-sm font-medium text-[#fff5ee]">Video codec</p>
           <div className="mt-2 grid grid-cols-3 gap-2">
-            {CODEC_PRESETS.map((preset) => (
+            {CODEC_PRESETS.filter((preset) => preset.format === format).map((preset) => (
               <button
                 key={preset.id}
                 type="button"
-                onClick={() => setCodec(preset.id)}
+                onClick={() => {
+                  setCodec(preset.id);
+                  setEncoder("software");
+                }}
                 className={`border px-2 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
                   preset.id === codec ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
                 }`}
@@ -321,18 +360,34 @@ export default function VideoSquisher({ sourceFiles }: Props) {
               </button>
             ))}
           </div>
-          <p className="mt-2 text-xs text-[#aeb2a5]">NVENC requires a native NVIDIA driver and is unavailable in this browser-based encoder.</p>
+          <p className="mt-2 text-xs text-[#aeb2a5]">Hardware engines are available only in ImageFit Desktop. Browser encoding uses software FFmpeg.</p>
         </div>
       ) : null}
 
-      {isDesktop && format === "mp4" ? (
+      {isDesktop && format !== "gif" ? (
         <div className="mt-4">
           <p className="text-sm font-medium text-[#fff5ee]">Encoding engine</p>
           <div className="mt-2 grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => setUseNvenc(false)} className={`border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${!useNvenc ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"}`}>Software FFmpeg</button>
-            <button type="button" disabled={!nvencSupported} onClick={() => setUseNvenc(true)} className={`border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${useNvenc ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"} disabled:cursor-not-allowed disabled:opacity-40`}>NVIDIA NVENC</button>
+            {ENCODER_PRESETS.map((preset) => {
+              const requiredEncoder = preset.id === "software" ? undefined : HARDWARE_ENCODERS[preset.id][codec];
+              const supported = preset.id === "software" || Boolean(requiredEncoder && availableEncoders.includes(requiredEncoder));
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  disabled={!supported}
+                  onClick={() => setEncoder(preset.id)}
+                  className={`border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
+                    encoder === preset.id ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
+                  } disabled:cursor-not-allowed disabled:opacity-40`}
+                >
+                  <span className="block">{preset.label}</span>
+                  <span className="mt-1 block font-normal text-[#aeb2a5]">{preset.description}</span>
+                </button>
+              );
+            })}
           </div>
-          {!nvencSupported ? <p className="mt-2 text-xs text-[#aeb2a5]">NVENC is unavailable until a compatible NVIDIA driver and FFmpeg build are detected.</p> : null}
+          <p className="mt-2 text-xs text-[#aeb2a5]">Unavailable engines do not support the selected codec or are not exposed by this computer's FFmpeg and graphics driver.</p>
         </div>
       ) : null}
 

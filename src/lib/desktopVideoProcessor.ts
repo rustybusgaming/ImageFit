@@ -11,15 +11,14 @@ export function isDesktopApp(): boolean {
   return typeof window !== "undefined" && Boolean(window.imageFitDesktop);
 }
 
-export async function getNvencSupport(): Promise<boolean> {
-  return window.imageFitDesktop?.nvencSupported() ?? false;
+export async function getAvailableVideoEncoders(): Promise<string[]> {
+  return window.imageFitDesktop?.availableVideoEncoders() ?? [];
 }
 
 export async function compressDesktopVideoToTarget(
   file: File,
   settings: VideoExportSettings,
   presetId: string,
-  useNvenc: boolean,
   onProgress: (progress: number) => void
 ): Promise<{ outputPath: string; size: number }> {
   const desktop = window.imageFitDesktop;
@@ -39,6 +38,6 @@ export async function compressDesktopVideoToTarget(
     frameRate: settings.frameRate,
     format: settings.format,
     codec: settings.codec,
-    useNvenc,
+    encoder: settings.encoder,
   }, onProgress);
 }

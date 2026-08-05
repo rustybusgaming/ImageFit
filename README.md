@@ -34,7 +34,8 @@ export default defineConfig([
   - Download one export directly or package several exports into a ZIP file.
   - Compress the original image with size and quality presets.
   - Use Discord 5 MB and 10 MB image presets that encode to the selected maximum size.
-  - Transcode videos locally to MP4 files sized for Discord's 5 MB or 10 MB upload limits.
+  - Transcode videos locally to MP4, WebM, MOV, AVI, OGV, or GIF files sized for Discord's 5 MB or 10 MB upload limits.
+  - Encode H.264, H.265/HEVC, AV1, VP8, VP9, MPEG-4 Part 2, ProRes, DNxHD, MJPEG, and Theora video.
 
   ## Run Locally
 
@@ -92,6 +93,10 @@ export default defineConfig([
   # Create a Windows portable executable in release/
   pnpm desktop:package:win
   ```
+
+  ### Desktop video engines
+
+  ImageFit Desktop detects available hardware encoders from its bundled FFmpeg build. H.264, H.265/HEVC, and AV1 can use NVIDIA NVENC, Intel Quick Sync, AMD AMF, or Apple VideoToolbox when the selected codec and installed graphics driver support them. Software FFmpeg remains available for every codec. The browser version always uses software FFmpeg.
 
   Push a version tag such as `v0.1.0` to build both desktop targets and publish their artifacts to a GitHub release:
 
