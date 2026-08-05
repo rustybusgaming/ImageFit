@@ -1,6 +1,7 @@
   import { useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { FileImage, FileVideo, UploadCloud } from "lucide-react";
+  import { isDesktopApp } from "../lib/desktopVideoProcessor";
 
 interface UploadZoneProps {
   onUpload: (files: File[]) => void;
@@ -8,6 +9,7 @@ interface UploadZoneProps {
 
 export default function UploadZone({ onUpload }: UploadZoneProps) {
   const [error, setError] = useState<string | null>(null);
+  const supportsLargeVideoFiles = isDesktopApp();
 
   function handleFiles(files: File[]) {
     const invalidFile = files.find((file) => !file.type.startsWith("image/") && !file.type.startsWith("video/"));
@@ -16,7 +18,7 @@ export default function UploadZone({ onUpload }: UploadZoneProps) {
       return;
     }
 
-    const oversizedFile = files.find((file) => file.size > (file.type.startsWith("video/") ? 3 * 1024 * 1024 * 1024 : 50 * 1024 * 1024));
+    const oversizedFile = files.find((file) => file.size > (file.type.startsWith("video/") && supportsLargeVideoFiles ? Number.POSITIVE_INFINITY : file.type.startsWith("video/") ? 3 * 1024 * 1024 * 1024 : 50 * 1024 * 1024));
     if (oversizedFile) {
       setError(`This ${oversizedFile.type.startsWith("video/") ? "video" : "image"} is larger than ${oversizedFile.type.startsWith("video/") ? "3 GB" : "50 MB"}.`);
       return;
@@ -63,7 +65,7 @@ export default function UploadZone({ onUpload }: UploadZoneProps) {
         </p>
         <p className="mt-2 text-sm text-[#b7baaf]">or click to browse from your device</p>
         <p className="mt-5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9ea296]">
-          Images: PNG · JPG · WEBP · GIF · SVG up to 50 MB &nbsp;•&nbsp; Videos: MP4 · WEBM · MOV up to 3 GB
+          Images: PNG · JPG · WEBP · GIF · SVG up to 50 MB &nbsp;•&nbsp; Videos: MP4 · WEBM · MOV {supportsLargeVideoFiles ? "any local size" : "up to 3 GB"}
         </p>
 
         {error ? <p className="mt-4 text-sm text-[#ff9a7b]">{error}</p> : null}

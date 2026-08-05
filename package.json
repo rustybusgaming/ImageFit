@@ -6,13 +6,36 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:desktop": "tsc -b && vite build --base=./",
+    "desktop": "npm run build:desktop && electron .",
+    "desktop:package": "npm run build:desktop && electron-builder --win portable",
     "lint": "eslint .",
     "preview": "vite preview"
+  },
+  "main": "desktop/main.cjs",
+  "build": {
+    "appId": "com.imagefit.desktop",
+    "productName": "ImageFit",
+    "files": [
+      "dist/**/*",
+      "desktop/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/ffmpeg-static/ffmpeg.exe",
+        "to": "ffmpeg/ffmpeg.exe"
+      }
+    ],
+    "win": {
+      "target": "portable"
+    }
   },
   "dependencies": {
     "@ffmpeg/core": "^0.12.10",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
+    "ffmpeg-static": "^5.3.0",
     "file-saver": "^2.0.5",
     "jszip": "^3.10.1",
     "lucide-react": "^1.25.0",
@@ -29,6 +52,8 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
+    "electron": "^43.3.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^10.6.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",

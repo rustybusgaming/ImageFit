@@ -7,6 +7,7 @@ let ffmpeg: FFmpeg | null = null;
 export type VideoResolution = "1080p" | "720p" | "480p";
 export type VideoAudioMode = "keep" | "reduced" | "mute";
 export type VideoOutputFormat = "mp4" | "gif";
+export type VideoCodec = "h264" | "h265" | "av1";
 
 export interface VideoExportSettings {
   maxBytes: number;
@@ -14,6 +15,7 @@ export interface VideoExportSettings {
   audio: VideoAudioMode;
   frameRate: 30 | 24 | 15;
   format: VideoOutputFormat;
+  codec: VideoCodec;
 }
 
 export interface VideoCompatibility {
@@ -27,6 +29,12 @@ const VIDEO_HEIGHTS: Record<VideoResolution, number> = {
   "1080p": 1080,
   "720p": 720,
   "480p": 480,
+};
+
+const VIDEO_ENCODERS: Record<VideoCodec, { name: string; args: string[] }> = {
+  h264: { name: "H.264", args: ["-c:v", "libx264", "-preset", "veryfast"] },
+  h265: { name: "H.265/HEVC", args: ["-c:v", "libx265", "-preset", "ultrafast", "-tag:v", "hvc1"] },
+  av1: { name: "AV1", args: ["-c:v", "libaom-av1", "-cpu-used", "8", "-row-mt", "1"] },
 };
 
 function getErrorMessage(error: unknown): string {
@@ -155,16 +163,17 @@ export async function compressVideoToTarget(
   const outputName = `imagefit-discord-${Date.now()}.${settings.format}`;
   let inputMounted = false;
   let inputWritten = false;
+  let inputDirectoryCreated = false;
   const usableBytes = Math.floor(settings.maxBytes * 0.96);
   const totalBitrate = Math.floor((usableBytes * 8) / duration);
   const audioBitrate = settings.audio === "keep" ? Math.min(96_000, Math.floor(totalBitrate * 0.2)) : settings.audio === "reduced" ? 48_000 : 0;
   const videoBitrate = Math.max(100_000, totalBitrate - audioBitrate);
   const filter = `[0:v]fps=${settings.frameRate},scale=-2:min(${VIDEO_HEIGHTS[settings.resolution]}\\,ih)[scaled];[scaled][1:v]overlay=W-w-24:H-h-24[video]`;
+  const codec = VIDEO_ENCODERS[settings.codec];
   const encodingArgs = settings.format === "gif"
     ? ["-loop", "0"]
     : [
-        "-c:v", "libx264",
-        "-preset", "veryfast",
+        ...codec.args,
         "-b:v", `${Math.floor(videoBitrate / 1000)}k`,
         "-maxrate", `${Math.floor(videoBitrate / 1000)}k`,
         "-bufsize", `${Math.floor((videoBitrate * 2) / 1000)}k`,
@@ -184,6 +193,8 @@ export async function compressVideoToTarget(
   encoder.on("log", logHandler);
 
   try {
+    await encoder.createDir(inputMountPoint);
+    inputDirectoryCreated = true;
     const mounted = await encoder.mount(FFFSType.WORKERFS, { files: [file] }, inputMountPoint);
     if (mounted) {
       inputMounted = true;
@@ -204,8 +215,9 @@ export async function compressVideoToTarget(
     ]);
 
     if (exitCode !== 0) {
-      const diagnostic = encoderLogs.findLast((message) => message.trim().length > 0);
-      throw new Error(diagnostic ? `Could not encode this video: ${diagnostic}` : "Could not encode this video. Try a smaller file or a different video format.");
+      const diagnostic = encoderLogs.findLast((message) => /unknown encoder|encoder .* not found|invalid encoder/i.test(message))
+        ?? encoderLogs.findLast((message) => message.trim().length > 0);
+      throw new Error(diagnostic ? `Could not encode with ${codec.name}: ${diagnostic}` : `Could not encode with ${codec.name}. Try H.264 or a smaller file.`);
     }
 
     const output = await encoder.readFile(outputName);
@@ -226,6 +238,7 @@ export async function compressVideoToTarget(
     encoder.off("log", logHandler);
     if (inputMounted) await encoder.unmount(inputMountPoint).catch(() => undefined);
     if (inputWritten) await encoder.deleteFile(inputName).catch(() => undefined);
+    if (inputDirectoryCreated) await encoder.deleteDir(inputMountPoint).catch(() => undefined);
     await encoder.deleteFile(watermarkName).catch(() => undefined);
     await encoder.deleteFile(outputName).catch(() => undefined);
   }

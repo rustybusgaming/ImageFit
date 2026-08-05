@@ -3,7 +3,8 @@ import { AlertTriangle, Download, FileVideo, Loader2, RotateCcw, Shrink, Square,
 import { downloadBlob } from "../lib/download";
 import { downloadZip } from "../lib/zip";
 import { cancelVideoEncoding, compressVideoToTarget, inspectVideo } from "../lib/videoProcessor";
-import type { VideoAudioMode, VideoCompatibility, VideoOutputFormat, VideoResolution } from "../lib/videoProcessor";
+import type { VideoAudioMode, VideoCodec, VideoCompatibility, VideoOutputFormat, VideoResolution } from "../lib/videoProcessor";
+import { compressDesktopVideoToTarget, getNvencSupport, isDesktopApp } from "../lib/desktopVideoProcessor";
 
 interface Props {
   sourceFiles: File[];
@@ -28,15 +29,21 @@ const AUDIO_PRESETS: Array<{ id: VideoAudioMode; label: string }> = [
 
 const FRAME_RATES: Array<30 | 24 | 15> = [30, 24, 15];
 
+const CODEC_PRESETS: Array<{ id: VideoCodec; label: string; description: string }> = [
+  { id: "h264", label: "H.264", description: "Best compatibility" },
+  { id: "h265", label: "H.265", description: "Smaller, newer devices" },
+  { id: "av1", label: "AV1", description: "Smallest, slowest" },
+];
+
 type QueueStatus = "waiting" | "encoding" | "ready" | "failed" | "cancelled";
 
 function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function getOutputFilename(file: File, presetId: string, format: VideoOutputFormat): string {
+function getOutputFilename(file: File, presetId: string, format: VideoOutputFormat, codec: VideoCodec): string {
   const sourceName = file.name.replace(/\.[^.]+$/, "") || "video";
-  return `${sourceName}-${presetId}.${format}`;
+  return `${sourceName}-${presetId}-${codec}.${format}`;
 }
 
 function getCompressionErrorMessage(error: unknown): string {
@@ -53,6 +60,9 @@ export default function VideoSquisher({ sourceFiles }: Props) {
   const [audio, setAudio] = useState<VideoAudioMode>("keep");
   const [frameRate, setFrameRate] = useState<30 | 24 | 15>(30);
   const [format, setFormat] = useState<VideoOutputFormat>("mp4");
+  const [codec, setCodec] = useState<VideoCodec>("h264");
+  const [nvencSupported, setNvencSupported] = useState(false);
+  const [useNvenc, setUseNvenc] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [isInspecting, setIsInspecting] = useState(true);
   const [progress, setProgress] = useState(0);
@@ -64,6 +74,13 @@ export default function VideoSquisher({ sourceFiles }: Props) {
   const [queueErrors, setQueueErrors] = useState<Record<string, string>>({});
   const cancellationRef = useRef(false);
   const selectedPreset = DISCORD_PRESETS.find((preset) => preset.id === presetId) ?? DISCORD_PRESETS[0];
+  const isDesktop = isDesktopApp();
+
+  useEffect(() => {
+    if (!isDesktop) return;
+
+    void getNvencSupport().then(setNvencSupported).catch(() => setNvencSupported(false));
+  }, [isDesktop]);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,6 +117,7 @@ export default function VideoSquisher({ sourceFiles }: Props) {
     setError(null);
     cancellationRef.current = false;
     const files: Array<{ blob: Blob; filename: string }> = [];
+    const nativeOutputs: string[] = [];
 
     try {
       for (const sourceFile of filesToEncode) {
@@ -113,12 +131,21 @@ export default function VideoSquisher({ sourceFiles }: Props) {
           return next;
         });
         try {
-          const blob = await compressVideoToTarget(sourceFile, { maxBytes: selectedPreset.maxBytes, resolution, audio, frameRate, format }, (nextProgress) => {
-            setProgress(nextProgress);
-            setQueueProgress((current) => ({ ...current, [sourceFile.name]: nextProgress }));
-          });
+          const settings = { maxBytes: selectedPreset.maxBytes, resolution, audio, frameRate, format, codec };
+          if (isDesktop) {
+            const output = await compressDesktopVideoToTarget(sourceFile, settings, selectedPreset.id, useNvenc, (nextProgress) => {
+              setProgress(nextProgress);
+              setQueueProgress((current) => ({ ...current, [sourceFile.name]: nextProgress }));
+            });
+            nativeOutputs.push(output.outputPath);
+          } else {
+            const output = await compressVideoToTarget(sourceFile, settings, (nextProgress) => {
+                setProgress(nextProgress);
+                setQueueProgress((current) => ({ ...current, [sourceFile.name]: nextProgress }));
+            });
+            files.push({ blob: output, filename: getOutputFilename(sourceFile, selectedPreset.id, format, codec) });
+          }
           if (cancellationRef.current) break;
-          files.push({ blob, filename: getOutputFilename(sourceFile, selectedPreset.id, format) });
           setQueueStatus((current) => ({ ...current, [sourceFile.name]: "ready" }));
           setQueueProgress((current) => ({ ...current, [sourceFile.name]: 1 }));
         } catch (compressionError) {
@@ -133,6 +160,8 @@ export default function VideoSquisher({ sourceFiles }: Props) {
       if (cancellationRef.current) {
         setQueueStatus((current) => Object.fromEntries(Object.entries(current).map(([name, status]) => [name, status === "encoding" || status === "waiting" ? "cancelled" : status])));
         setResult("Encoding cancelled. Ready files remain available from completed runs.");
+      } else if (isDesktop && nativeOutputs.length > 0) {
+        setResult(`${nativeOutputs.length} file${nativeOutputs.length === 1 ? "" : "s"} saved to Downloads\\ImageFit.`);
       } else if (files.length === 1) {
         downloadBlob(files[0].blob, files[0].filename);
         setResult(`1 ${format.toUpperCase()} file ready for Discord.`);
@@ -273,6 +302,39 @@ export default function VideoSquisher({ sourceFiles }: Props) {
           </div>
         </div>
       </div>
+
+      {format === "mp4" ? (
+        <div className="mt-4">
+          <p className="text-sm font-medium text-[#fff5ee]">Video codec</p>
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            {CODEC_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => setCodec(preset.id)}
+                className={`border px-2 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
+                  preset.id === codec ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
+                }`}
+              >
+                <span className="block text-sm font-semibold">{preset.label}</span>
+                <span className="mt-1 block text-xs leading-4">{preset.description}</span>
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-[#aeb2a5]">NVENC requires a native NVIDIA driver and is unavailable in this browser-based encoder.</p>
+        </div>
+      ) : null}
+
+      {isDesktop && format === "mp4" ? (
+        <div className="mt-4">
+          <p className="text-sm font-medium text-[#fff5ee]">Encoding engine</p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => setUseNvenc(false)} className={`border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${!useNvenc ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"}`}>Software FFmpeg</button>
+            <button type="button" disabled={!nvencSupported} onClick={() => setUseNvenc(true)} className={`border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${useNvenc ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"} disabled:cursor-not-allowed disabled:opacity-40`}>NVIDIA NVENC</button>
+          </div>
+          {!nvencSupported ? <p className="mt-2 text-xs text-[#aeb2a5]">NVENC is unavailable until a compatible NVIDIA driver and FFmpeg build are detected.</p> : null}
+        </div>
+      ) : null}
 
       <button
         type="button"
