@@ -13,7 +13,7 @@ export function useImage() {
   }
 
   function loadImage(file: File) {
-    if (!file.type.startsWith("image/")) {
+    if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
       return;
     }
 
@@ -39,6 +39,7 @@ export function useImage() {
   return {
     image,
     imageFile,
+    isVideo: imageFile?.type.startsWith("video/") ?? false,
     loadImage,
     clearImage,
   };

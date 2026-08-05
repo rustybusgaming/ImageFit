@@ -6,11 +6,12 @@ import type { PlatformPreset } from "./data/platforms";
 import ImageEditor from "./components/ImageEditor";
 import ExportPanel from "./components/ExportPanel";
 import ImageSquisher from "./components/ImageSquisher";
+import VideoSquisher from "./components/VideoSquisher";
 import { useImage } from "./hooks/useImage";
 import type { ImageTransform } from "./lib/imageProcessor";
 
 export default function App() {
-  const { image, imageFile, loadImage, clearImage } = useImage();
+  const { image, imageFile, isVideo, loadImage, clearImage } = useImage();
   const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformPreset[]>([]);
   const [transform, setTransform] = useState<ImageTransform>();
 
@@ -36,9 +37,9 @@ export default function App() {
               <div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <h1 className="text-2xl font-bold tracking-[0.08em] text-[#f8f8f1]">IMAGEFIT</h1>
-                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#a6aa9d]">Local image workstation</span>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#a6aa9d]">Local media workstation</span>
                 </div>
-                <p className="mt-0.5 text-sm text-[#b7baaf]">Frame once. Output every format.</p>
+                <p className="mt-0.5 text-sm text-[#b7baaf]">Prepare images and Discord-ready video files.</p>
               </div>
             </div>
 
@@ -56,8 +57,8 @@ export default function App() {
           <div className="mt-5 grid border-t border-white/10 pt-4 sm:grid-cols-3">
             {[
               { icon: ImagePlus, title: "01", copy: "Load a source file" },
-              { icon: Sparkles, title: "02", copy: "Compose and select" },
-              { icon: Download, title: "03", copy: "Build your exports" },
+              { icon: Sparkles, title: "02", copy: "Edit or compress" },
+              { icon: Download, title: "03", copy: "Download ready files" },
             ].map(({ icon: Icon, title, copy }) => (
               <div key={title} className="flex items-center gap-3 py-2 sm:border-r sm:border-white/10 sm:px-4 sm:first:pl-0 sm:last:border-r-0">
                 <Icon className="h-4 w-4 shrink-0 text-[#d7ff47]" aria-hidden="true" />
@@ -72,6 +73,17 @@ export default function App() {
 
         {!image ? (
           <UploadZone onUpload={loadImage} />
+        ) : isVideo && imageFile ? (
+          <div className="grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
+            <section className="border border-white/10 bg-[#151714] p-5 shadow-[0_16px_40px_-28px_rgba(0,0,0,0.9)]">
+              <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#a6aa9d]">Video source</p>
+              <h2 className="mt-1 text-xl font-semibold text-[#f4f4ed]">{imageFile.name}</h2>
+              <video className="mt-5 max-h-[640px] w-full bg-[#090a09]" controls src={image} />
+            </section>
+            <aside className="lg:sticky lg:top-6 lg:self-start">
+              <VideoSquisher sourceFile={imageFile} />
+            </aside>
+          </div>
         ) : (
           <div className="grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
             <div className="space-y-6">
@@ -133,7 +145,7 @@ export default function App() {
               </div>
               <div className="flex items-center gap-3 border border-white/10 bg-[#151714] p-4 text-sm text-[#b7baaf]">
                 <LockKeyhole className="h-5 w-5 shrink-0 text-[#d7ff47]" />
-                <span>Your images stay on this device. Processing happens entirely in your browser.</span>
+                <span>Your media stays on this device. Processing happens entirely in your browser.</span>
               </div>
             </div>
           </div>

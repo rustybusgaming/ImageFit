@@ -25,7 +25,7 @@ export default defineConfig([
 
   ## Features
 
-  - Upload JPG, PNG, WebP, GIF, or SVG images up to 20 MB.
+  - Upload JPG, PNG, WebP, GIF, or SVG images up to 20 MB, or MP4, WebM, MOV, and M4V videos up to 250 MB.
   - Crop, zoom, and rotate the source image.
   - Export presets for Instagram, Discord, GitHub, LinkedIn, Open Collective, YouTube, Roblox, Twitch, X, and TikTok.
   - Choose JPEG, PNG, or WebP output with adjustable quality.
@@ -33,6 +33,8 @@ export default defineConfig([
   - Apply monochrome, warm, or colour-pop effects.
   - Download one export directly or package several exports into a ZIP file.
   - Compress the original image with size and quality presets.
+  - Use Discord 5 MB and 10 MB image presets that encode to the selected maximum size.
+  - Transcode videos locally to MP4 files sized for Discord's 5 MB or 10 MB upload limits.
 
   ## Run Locally
 

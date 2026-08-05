@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Download, Laugh, Loader2, Shrink } from "lucide-react";
-import { compressImage } from "../lib/imageProcessor";
-import type { CompressionSettings } from "../lib/imageProcessor";
+import { compressImage, compressImageToTarget } from "../lib/imageProcessor";
+import type { CompressionSettings, TargetCompressionSettings } from "../lib/imageProcessor";
 import { downloadBlob } from "../lib/download";
 
 interface Props {
@@ -13,7 +13,7 @@ interface SquishPreset {
   id: string;
   label: string;
   description: string;
-  settings: CompressionSettings;
+  settings: CompressionSettings | TargetCompressionSettings;
 }
 
 const SQUISH_PRESETS: SquishPreset[] = [
@@ -21,7 +21,13 @@ const SQUISH_PRESETS: SquishPreset[] = [
   { id: "crunchy", label: "Crunchy", description: "Smaller, with a little crunch.", settings: { format: "webp", quality: 0.58, scale: 0.82, effect: "pop" } },
   { id: "potato", label: "Potato", description: "Alarmingly compact. Deliciously pixelated.", settings: { format: "jpg", quality: 0.3, scale: 0.55, effect: "warm" } },
   { id: "deep-fried", label: "Deep fried", description: "Maximum meme energy. Minimum bytes.", settings: { format: "jpg", quality: 0.14, scale: 0.38, effect: "pop" } },
+  { id: "discord-10mb", label: "Discord 10 MB", description: "WebP tuned to fit Discord's 10 MB upload limit.", settings: { format: "webp", quality: 0.9, scale: 1, effect: "none", maxBytes: 10 * 1024 * 1024 } },
+  { id: "discord-5mb", label: "Discord 5 MB", description: "WebP tuned to fit Discord's 5 MB upload limit.", settings: { format: "webp", quality: 0.9, scale: 1, effect: "none", maxBytes: 5 * 1024 * 1024 } },
 ];
+
+function isTargetCompression(settings: CompressionSettings | TargetCompressionSettings): settings is TargetCompressionSettings {
+  return "maxBytes" in settings;
+}
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) {
@@ -43,7 +49,9 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
     setResult(null);
 
     try {
-      const blob = await compressImage(image, selectedPreset.settings);
+      const blob = isTargetCompression(selectedPreset.settings)
+        ? await compressImageToTarget(image, selectedPreset.settings)
+        : await compressImage(image, selectedPreset.settings);
       const sourceSize = sourceFile?.size;
       const saved = sourceSize ? Math.round((1 - blob.size / sourceSize) * 100) : null;
       setResult(saved !== null && saved > 0 ? `${formatBytes(blob.size)} · ${saved}% smaller` : `${formatBytes(blob.size)} ready`);

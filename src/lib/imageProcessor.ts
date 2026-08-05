@@ -24,6 +24,10 @@ export interface CompressionSettings {
   effect: ImageEffect;
 }
 
+export interface TargetCompressionSettings extends CompressionSettings {
+  maxBytes: number;
+}
+
 const MIME_TYPES: Record<OutputFormat, string> = {
   jpg: "image/jpeg",
   png: "image/png",
@@ -203,4 +207,34 @@ export async function compressImage(imageSrc: string, settings: CompressionSetti
     image.onerror = () => reject(new Error("Failed to load image for compression"));
     image.src = imageSrc;
   });
+}
+
+export async function compressImageToTarget(imageSrc: string, settings: TargetCompressionSettings): Promise<Blob> {
+  let quality = settings.quality;
+  let scale = settings.scale;
+  let smallestResult: Blob | null = null;
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const result = await compressImage(imageSrc, { ...settings, quality, scale });
+
+    if (!smallestResult || result.size < smallestResult.size) {
+      smallestResult = result;
+    }
+
+    if (result.size <= settings.maxBytes) {
+      return result;
+    }
+
+    if (quality > 0.42) {
+      quality = Math.max(0.42, quality - 0.1);
+    } else {
+      scale = Math.max(0.2, scale * 0.82);
+    }
+  }
+
+  if (smallestResult && smallestResult.size <= settings.maxBytes) {
+    return smallestResult;
+  }
+
+  throw new Error("This image could not be reduced to the selected file-size limit.");
 }
