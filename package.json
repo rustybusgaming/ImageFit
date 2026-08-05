@@ -31,8 +31,8 @@
     ],
     "extraResources": [
       {
-        "from": "node_modules/ffmpeg-static/ffmpeg",
-        "to": "ffmpeg/ffmpeg"
+        "from": "node_modules/ffmpeg-static",
+        "to": "ffmpeg"
       }
     ],
     "win": {

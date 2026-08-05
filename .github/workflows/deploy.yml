@@ -48,8 +48,22 @@ jobs:
           publish_dir: ./dist
 
   desktop:
-    needs: web
-    runs-on: ubuntu-latest
+    name: Desktop (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-latest
+            command: pnpm desktop:package:linux
+            artifact: imagefit-desktop-linux
+            path: release/*.AppImage
+          - name: Windows
+            os: windows-latest
+            command: pnpm desktop:package:win
+            artifact: imagefit-desktop-windows
+            path: release/*.exe
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -69,18 +83,31 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build desktop app
-        run: pnpm desktop:package:linux
+        run: ${{ matrix.command }}
 
       - name: Upload desktop artifact
         uses: actions/upload-artifact@v4
         with:
-          name: imagefit-desktop-linux
-          path: release/*.AppImage
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.path }}
+
+  publish-desktop:
+    name: Publish desktop release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: desktop
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download desktop artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: imagefit-desktop-*
+          merge-multiple: true
 
       - name: Publish GitHub release
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: release/*.AppImage
+          files: |
+            *.AppImage
+            *.exe
           draft: false
           prerelease: false

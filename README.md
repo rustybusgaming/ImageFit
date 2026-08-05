@@ -73,6 +73,33 @@ export default defineConfig([
   npm run preview
   ```
 
+  ## Website And Desktop Releases
+
+  ImageFit is available in two forms:
+
+  - **Website:** GitHub Actions builds `dist/` and deploys it to GitHub Pages whenever `main` is updated.
+  - **Desktop:** Electron packages the same interface with native FFmpeg video processing. Download the Linux AppImage or Windows portable `.exe` from the GitHub Releases page.
+
+  ### Desktop development
+
+  ```bash
+  # Run the Electron app locally
+  pnpm desktop
+
+  # Create a Linux AppImage in release/
+  pnpm desktop:package:linux
+
+  # Create a Windows portable executable in release/
+  pnpm desktop:package:win
+  ```
+
+  Push a version tag such as `v0.1.0` to build both desktop targets and publish their artifacts to a GitHub release:
+
+  ```bash
+  git tag v0.1.0
+  git push origin v0.1.0
+  ```
+
   ## How It Works
 
   1. Upload an image from your device.
