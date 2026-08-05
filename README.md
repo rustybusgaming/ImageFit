@@ -1,23 +1,4 @@
-# React + TypeScript + Vite
-
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  # ImageFit
+# ImageFit
 
   ImageFit is a browser-based image editor for preparing one source image for several social-media and profile-image formats. Upload an image, position the crop, choose the presets you need, and download individual files or a ZIP bundle.
 
@@ -42,7 +23,7 @@ export default defineConfig([
   ### Prerequisites
 
   - Node.js 20 or later
-  - npm 10 or later, or pnpm 9 or later
+  - pnpm 11 (Corepack can install the pinned version automatically)
 
   ### Install and start
 
@@ -51,27 +32,22 @@ export default defineConfig([
   pnpm dev
   ```
 
-  Vite prints the local development URL when the server starts. To use npm instead:
-
-  ```bash
-  npm install
-  npm run dev
-  ```
+  Vite prints the local development URL when the server starts.
 
   ## Commands
 
   ```bash
   # Start the Vite development server
-  npm run dev
+  pnpm dev
 
   # Run ESLint
-  npm run lint
+  pnpm lint
 
   # Type-check and create a production build in dist/
-  npm run build
+  pnpm build
 
   # Preview the production build locally
-  npm run preview
+  pnpm preview
   ```
 
   ## Website And Desktop Releases
