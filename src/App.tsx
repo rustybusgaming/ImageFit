@@ -143,6 +143,7 @@ export default function App() {
                   handleReset();
                 }}
                 aria-disabled={!image}
+                aria-label={!image ? "Start over (disabled: No media loaded)" : undefined}
                 title={!image ? "No media loaded" : undefined}
                 className="inline-flex items-center justify-center gap-2 border border-white/15 bg-[#20231e] px-3 py-2 text-sm font-semibold text-[#e8eadf] transition hover:border-[#d7ff47] hover:text-[#d7ff47] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] focus-visible:ring-offset-2 focus-visible:ring-offset-[#151714] aria-disabled:cursor-not-allowed aria-disabled:opacity-40 aria-disabled:hover:border-white/15 aria-disabled:hover:text-[#e8eadf]"
               >
