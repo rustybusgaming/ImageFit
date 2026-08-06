@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { FolderOpen, HardDriveDownload, MonitorCog, RefreshCw, Upload } from "lucide-react";
 import { getAvailableVideoEncoders } from "../lib/desktopVideoProcessor";
+import { getGPUCapabilities, type GPUCapabilities } from "../lib/gpuImageProcessor";
 
 interface Props {
   onOpenMedia: () => void;
@@ -19,6 +20,7 @@ export default function DesktopControls({ onOpenMedia }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [outputDirectory, setOutputDirectory] = useState("");
   const [encoders, setEncoders] = useState<string[]>([]);
+  const [gpu] = useState<GPUCapabilities>(() => getGPUCapabilities());
   const [update, setUpdate] = useState<{ state: UpdateState; version?: string } | null>(null);
   const desktop = window.imageFitDesktop;
 
@@ -101,6 +103,17 @@ export default function DesktopControls({ onOpenMedia }: Props) {
               })}
             </div>
             <p className="mt-3 text-xs leading-4 text-[#8f9389]">Unavailable engines are disabled because the required hardware, driver, operating system, or bundled FFmpeg encoder is not available. Software FFmpeg remains available for every codec.</p>
+          </div>
+
+          <div className="mt-3 border border-white/10 bg-[#1b1e1a] p-3">
+            <p className="flex items-center gap-2 text-sm font-medium text-[#f0f1e9]"><MonitorCog className="h-4 w-4 text-[#d7ff47]" /> GPU rendering</p>
+            <div className={`mt-3 border p-2.5 ${gpu.supported ? "border-[#d7ff47]/40 bg-[#20251a]" : "border-white/10 bg-[#151714]"}`}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-[#f0f1e9]">Canvas &amp; image editor</p>
+                <span className={`font-mono text-[10px] uppercase ${gpu.supported ? "text-[#d7ff47]" : "text-[#8f9389]"}`}>{gpu.supported ? "Accelerated" : "Software"}</span>
+              </div>
+              <p className="mt-1 truncate text-xs leading-4 text-[#aeb2a5]" title={gpu.renderer}>{gpu.supported ? gpu.renderer : "No GPU renderer detected; falling back to software rasterization."}</p>
+            </div>
           </div>
 
           {update ? (

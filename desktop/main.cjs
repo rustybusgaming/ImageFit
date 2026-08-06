@@ -5,6 +5,11 @@ const path = require("node:path");
 const fs = require("node:fs");
 const { assertVideoPayload, getOutputFilename } = require("./video-config.cjs");
 
+// Enable GPU rasterization and zero-copy for hardware-accelerated UI rendering
+app.commandLine.appendSwitch("enable-gpu-rasterization");
+app.commandLine.appendSwitch("enable-zero-copy");
+app.commandLine.appendSwitch("ignore-gpu-blocklist");
+
 const MEDIA_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".mp4", ".webm", ".mov", ".m4v", ".avi", ".mkv"]);
 let mainWindow = null;
 let pendingOpenPaths = [];
