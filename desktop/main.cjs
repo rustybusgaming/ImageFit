@@ -1,9 +1,13 @@
-const { app, BrowserWindow, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const { spawn, spawnSync } = require("node:child_process");
 const path = require("node:path");
 const fs = require("node:fs");
+const https = require("node:https");
 const { assertVideoPayload, getOutputFilename } = require("./video-config.cjs");
+
+const GITHUB_REPO = "rustybusgaming/ImageFit";
+const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases/latest`;
 
 // Enable GPU rasterization and zero-copy for hardware-accelerated UI rendering
 app.commandLine.appendSwitch("enable-gpu-rasterization");
@@ -68,6 +72,46 @@ function getFfmpegPath() {
 function parseTimestamp(value) {
   const [hours, minutes, seconds] = value.split(":").map(Number);
   return hours * 3600 + minutes * 60 + seconds;
+}
+
+function isNewerVersion(latest, current) {
+  const latestParts = latest.split(".").map(Number);
+  const currentParts = current.split(".").map(Number);
+  for (let i = 0; i < Math.max(latestParts.length, currentParts.length); i += 1) {
+    const latestPart = latestParts[i] ?? 0;
+    const currentPart = currentParts[i] ?? 0;
+    if (latestPart !== currentPart) return latestPart > currentPart;
+  }
+  return false;
+}
+
+function fetchLatestGithubRelease() {
+  return new Promise((resolve, reject) => {
+    const request = https.get(
+      `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
+      { headers: { "User-Agent": "ImageFit", Accept: "application/vnd.github+json" } },
+      (response) => {
+        if (response.statusCode !== 200) {
+          response.resume();
+          reject(new Error(`GitHub API returned status ${response.statusCode}.`));
+          return;
+        }
+
+        let body = "";
+        response.on("data", (chunk) => { body += chunk; });
+        response.on("end", () => {
+          try {
+            const release = JSON.parse(body);
+            resolve(typeof release.tag_name === "string" ? release.tag_name.replace(/^v/, "") : null);
+          } catch (error) {
+            reject(error);
+          }
+        });
+      }
+    );
+    request.on("error", reject);
+    request.setTimeout(10_000, () => request.destroy(new Error("GitHub update check timed out.")));
+  });
 }
 
 const SOFTWARE_CODEC_ARGS = {
@@ -236,12 +280,25 @@ app.whenReady().then(() => {
     autoUpdater.quitAndInstall();
     return true;
   });
-  ipcMain.handle("desktop:check-for-updates", () => {
-    if (!app.isPackaged) {
+  ipcMain.handle("desktop:check-for-updates", async () => {
+    mainWindow?.webContents.send("desktop:update-status", { state: "checking" });
+
+    try {
+      const latestVersion = await fetchLatestGithubRelease();
+      if (latestVersion && isNewerVersion(latestVersion, app.getVersion())) {
+        mainWindow?.webContents.send("desktop:update-status", { state: "available", version: latestVersion });
+      } else {
+        mainWindow?.webContents.send("desktop:update-status", { state: "unavailable" });
+      }
+    } catch {
       mainWindow?.webContents.send("desktop:update-status", { state: "unavailable" });
-      return false;
     }
-    void autoUpdater.checkForUpdatesAndNotify();
+
+    if (app.isPackaged) void autoUpdater.checkForUpdatesAndNotify();
+    return true;
+  });
+  ipcMain.handle("desktop:open-release-page", () => {
+    void shell.openExternal(GITHUB_RELEASES_URL);
     return true;
   });
 

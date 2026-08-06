@@ -7,7 +7,7 @@ interface Props {
   onOpenMedia: () => void;
 }
 
-type UpdateState = "checking" | "downloading" | "ready" | "unavailable";
+type UpdateState = "checking" | "downloading" | "ready" | "available" | "unavailable";
 
 const CAPABILITIES = [
   { name: "NVIDIA NVENC", encoders: ["h264_nvenc", "hevc_nvenc", "av1_nvenc"], detail: "H.264, HEVC, and AV1 on compatible NVIDIA GPUs." },
@@ -49,6 +49,11 @@ export default function DesktopControls({ onOpenMedia }: Props) {
   async function checkForUpdates() {
     if (!desktop) return;
     await desktop.checkForUpdates();
+  }
+
+  async function viewReleasePage() {
+    if (!desktop) return;
+    await desktop.openReleasePage();
   }
 
   return (
@@ -126,11 +131,14 @@ export default function DesktopControls({ onOpenMedia }: Props) {
               {update?.state === "checking" ? "Checking for updates..."
                 : update?.state === "downloading" ? `Downloading ImageFit ${update.version ?? "update"}...`
                 : update?.state === "ready" ? `ImageFit ${update.version ?? "update"} is ready to install.`
+                : update?.state === "available" ? `ImageFit ${update.version ?? "update"} is available on GitHub.`
                 : update?.state === "unavailable" ? "You're on the latest version."
                 : "Check for the latest ImageFit release."}
             </div>
             {update?.state === "ready" ? (
               <button type="button" onClick={() => void installUpdate()} className="shrink-0 border border-[#d7ff47] px-2 py-1 text-xs font-semibold text-[#d7ff47] transition hover:bg-[#d7ff47] hover:text-[#11130f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47]">Install and restart</button>
+            ) : update?.state === "available" ? (
+              <button type="button" onClick={() => void viewReleasePage()} className="shrink-0 border border-[#d7ff47] px-2 py-1 text-xs font-semibold text-[#d7ff47] transition hover:bg-[#d7ff47] hover:text-[#11130f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47]">View on GitHub</button>
             ) : (
               <button
                 type="button"
