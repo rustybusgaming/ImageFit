@@ -1,5 +1,7 @@
 const { contextBridge, ipcRenderer, webUtils } = require("electron");
-const { randomUUID } = require("node:crypto");
+
+// Sandboxed preload scripts cannot require Node built-ins like node:crypto; use the Web Crypto API instead.
+const randomUUID = () => crypto.randomUUID();
 
 const progressCallbacks = new Map();
 const openFileCallbacks = new Set();
