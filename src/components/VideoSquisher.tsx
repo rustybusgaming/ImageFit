@@ -286,11 +286,18 @@ export default function VideoSquisher({ sourceFiles }: Props) {
               <button
                 key={preset.id}
                 type="button"
-                onClick={() => setAudio(preset.id)}
-                disabled={format === "gif"}
+                onClick={(e) => {
+                  if (format === "gif") {
+                    e.preventDefault();
+                    return;
+                  }
+                  setAudio(preset.id);
+                }}
+                aria-disabled={format === "gif"}
+                title={format === "gif" ? "GIF format does not support audio" : undefined}
                 className={`border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
                   preset.id === audio ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
-                } disabled:cursor-not-allowed disabled:opacity-40`}
+                } aria-disabled:cursor-not-allowed aria-disabled:opacity-40 aria-disabled:hover:border-[#ff7448]/20`}
               >
                 {preset.label}
               </button>
