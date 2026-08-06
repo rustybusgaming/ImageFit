@@ -1,7 +1,7 @@
 {
   "name": "imagefit",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.1.1",
   "packageManager": "pnpm@11.20.0",
   "description": "ImageFit desktop and web app for resizing and exporting images and videos.",
   "author": "rustybusgaming",
