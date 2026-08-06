@@ -236,6 +236,14 @@ app.whenReady().then(() => {
     autoUpdater.quitAndInstall();
     return true;
   });
+  ipcMain.handle("desktop:check-for-updates", () => {
+    if (!app.isPackaged) {
+      mainWindow?.webContents.send("desktop:update-status", { state: "unavailable" });
+      return false;
+    }
+    void autoUpdater.checkForUpdatesAndNotify();
+    return true;
+  });
 
   createWindow();
   if (app.isPackaged) {

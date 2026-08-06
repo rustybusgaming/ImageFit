@@ -46,6 +46,11 @@ export default function DesktopControls({ onOpenMedia }: Props) {
     await desktop.installUpdate();
   }
 
+  async function checkForUpdates() {
+    if (!desktop) return;
+    await desktop.checkForUpdates();
+  }
+
   return (
     <div className="relative">
       <button
@@ -116,15 +121,28 @@ export default function DesktopControls({ onOpenMedia }: Props) {
             </div>
           </div>
 
-          {update ? (
-            <div className="mt-3 flex items-center gap-2 border border-[#d7ff47]/35 bg-[#20251a] p-3 text-xs text-[#d9dbd2]">
-              <RefreshCw className={`h-4 w-4 shrink-0 text-[#d7ff47] ${update.state === "checking" || update.state === "downloading" ? "animate-spin" : ""}`} />
-              <div className="min-w-0 flex-1">
-                {update.state === "checking" ? "Checking for updates..." : update.state === "downloading" ? `Downloading ImageFit ${update.version ?? "update"}...` : update.state === "ready" ? `ImageFit ${update.version ?? "update"} is ready to install.` : "Updates are currently unavailable."}
-              </div>
-              {update.state === "ready" ? <button type="button" onClick={() => void installUpdate()} className="shrink-0 border border-[#d7ff47] px-2 py-1 font-semibold text-[#d7ff47] transition hover:bg-[#d7ff47] hover:text-[#11130f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47]">Install and restart</button> : null}
+          <div className="mt-3 flex items-center justify-between gap-3 border border-white/10 bg-[#1b1e1a] p-3">
+            <div className="min-w-0 flex-1 text-xs text-[#d9dbd2]">
+              {update?.state === "checking" ? "Checking for updates..."
+                : update?.state === "downloading" ? `Downloading ImageFit ${update.version ?? "update"}...`
+                : update?.state === "ready" ? `ImageFit ${update.version ?? "update"} is ready to install.`
+                : update?.state === "unavailable" ? "You're on the latest version."
+                : "Check for the latest ImageFit release."}
             </div>
-          ) : null}
+            {update?.state === "ready" ? (
+              <button type="button" onClick={() => void installUpdate()} className="shrink-0 border border-[#d7ff47] px-2 py-1 text-xs font-semibold text-[#d7ff47] transition hover:bg-[#d7ff47] hover:text-[#11130f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47]">Install and restart</button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void checkForUpdates()}
+                disabled={update?.state === "checking" || update?.state === "downloading"}
+                className="inline-flex shrink-0 items-center gap-1.5 border border-white/15 px-2 py-1 text-xs font-semibold text-[#e8eadf] transition hover:border-[#d7ff47] hover:text-[#d7ff47] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${update?.state === "checking" || update?.state === "downloading" ? "animate-spin" : ""}`} />
+                Check for updates
+              </button>
+            )}
+          </div>
         </section>
       ) : null}
     </div>

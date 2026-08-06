@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld("imageFitDesktop", {
     return () => updateCallbacks.delete(callback);
   },
   installUpdate: () => ipcRenderer.invoke("desktop:install-update"),
+  checkForUpdates: () => ipcRenderer.invoke("desktop:check-for-updates"),
   encodeVideo: (payload, onProgress) => {
     const jobId = randomUUID();
     progressCallbacks.set(jobId, onProgress);
