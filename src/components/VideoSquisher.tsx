@@ -294,6 +294,7 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                   setAudio(preset.id);
                 }}
                 aria-disabled={format === "gif"}
+                aria-label={format === "gif" ? `${preset.label} (disabled: GIF format does not support audio)` : undefined}
                 title={format === "gif" ? "GIF format does not support audio" : undefined}
                 className={`border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
                   preset.id === audio ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
