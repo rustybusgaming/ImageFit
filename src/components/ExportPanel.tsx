@@ -214,11 +214,18 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
             <button
               key={mode}
               type="button"
-              disabled={mode === "transparent" && format === "jpg"}
-              onClick={() => setBackground(mode)}
+              aria-disabled={mode === "transparent" && format === "jpg"}
+              title={mode === "transparent" && format === "jpg" ? "JPEG does not support transparency" : undefined}
+              onClick={(e) => {
+                if (mode === "transparent" && format === "jpg") {
+                  e.preventDefault();
+                  return;
+                }
+                setBackground(mode);
+              }}
               className={`border px-2 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1b1e1a] ${
                 background === mode ? "border-[#d7ff47] bg-[#242a1c] text-[#d7ff47]" : "border-white/10 bg-[#151714] text-[#b7baaf] hover:border-white/30"
-              } disabled:cursor-not-allowed disabled:opacity-40`}
+              } aria-disabled:cursor-not-allowed aria-disabled:opacity-40 aria-disabled:hover:border-white/10`}
             >
               {label}
             </button>
