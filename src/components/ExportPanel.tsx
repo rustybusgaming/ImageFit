@@ -161,6 +161,7 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
               key={preset.label}
               type="button"
               onClick={() => setQuality(preset.value)}
+              aria-pressed={quality === preset.value}
               className={`border px-2 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1b1e1a] ${
                 quality === preset.value ? "border-[#d7ff47] bg-[#242a1c] text-[#d7ff47]" : "border-white/10 bg-[#151714] text-[#b7baaf] hover:border-white/30"
               }`}
@@ -216,6 +217,7 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
               type="button"
               disabled={mode === "transparent" && format === "jpg"}
               onClick={() => setBackground(mode)}
+              aria-pressed={background === mode}
               className={`border px-2 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1b1e1a] ${
                 background === mode ? "border-[#d7ff47] bg-[#242a1c] text-[#d7ff47]" : "border-white/10 bg-[#151714] text-[#b7baaf] hover:border-white/30"
               } disabled:cursor-not-allowed disabled:opacity-40`}
@@ -245,6 +247,7 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
               key={nextEffect}
               type="button"
               onClick={() => setEffect(nextEffect)}
+              aria-pressed={effect === nextEffect}
               className={`border px-2 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1b1e1a] ${
                 effect === nextEffect ? "border-[#ff7448] bg-[#2b1913] text-[#ffb39d]" : "border-white/10 bg-[#151714] text-[#b7baaf] hover:border-white/30"
               }`}
