@@ -160,6 +160,7 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
             <button
               key={preset.label}
               type="button"
+              aria-pressed={quality === preset.value}
               onClick={() => setQuality(preset.value)}
               className={`border px-2 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1b1e1a] ${
                 quality === preset.value ? "border-[#d7ff47] bg-[#242a1c] text-[#d7ff47]" : "border-white/10 bg-[#151714] text-[#b7baaf] hover:border-white/30"
@@ -210,19 +211,29 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
             ["solid", "Solid colour"],
             ["gradient", "Gradient"],
             ["transparent", "Transparent"],
-          ] as Array<[BackgroundMode, string]>).map(([mode, label]) => (
+          ] as Array<[BackgroundMode, string]>).map(([mode, label]) => {
+            const isDisabled = mode === "transparent" && format === "jpg";
+            return (
             <button
               key={mode}
               type="button"
-              disabled={mode === "transparent" && format === "jpg"}
-              onClick={() => setBackground(mode)}
+              aria-pressed={background === mode}
+              aria-disabled={isDisabled}
+              title={isDisabled ? "JPEG does not support transparency" : undefined}
+              onClick={(e) => {
+                if (isDisabled) {
+                  e.preventDefault();
+                  return;
+                }
+                setBackground(mode);
+              }}
               className={`border px-2 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1b1e1a] ${
                 background === mode ? "border-[#d7ff47] bg-[#242a1c] text-[#d7ff47]" : "border-white/10 bg-[#151714] text-[#b7baaf] hover:border-white/30"
-              } disabled:cursor-not-allowed disabled:opacity-40`}
+              } aria-disabled:cursor-not-allowed aria-disabled:opacity-40`}
             >
               {label}
             </button>
-          ))}
+          )})}
         </div>
         {background === "solid" || background === "gradient" ? (
           <label className="mt-3 flex items-center justify-between text-sm text-[#b7baaf]">
@@ -244,6 +255,7 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
             <button
               key={nextEffect}
               type="button"
+              aria-pressed={effect === nextEffect}
               onClick={() => setEffect(nextEffect)}
               className={`border px-2 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1b1e1a] ${
                 effect === nextEffect ? "border-[#ff7448] bg-[#2b1913] text-[#ffb39d]" : "border-white/10 bg-[#151714] text-[#b7baaf] hover:border-white/30"
