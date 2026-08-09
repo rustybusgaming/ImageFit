@@ -215,6 +215,7 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
               key={mode}
               type="button"
               aria-disabled={mode === "transparent" && format === "jpg"}
+              aria-label={mode === "transparent" && format === "jpg" ? `${label} (disabled: JPEG does not support transparency)` : undefined}
               title={mode === "transparent" && format === "jpg" ? "JPEG does not support transparency" : undefined}
               onClick={(e) => {
                 if (mode === "transparent" && format === "jpg") {
