@@ -1,0 +1,3 @@
+## 2026-08-09 - Accessible Disabled State on Toggle Buttons
+**Learning:** Using the native `disabled` attribute on custom selection buttons removes them from the keyboard tab order and blocks hover events (such as tooltips). This prevents keyboard-only and screen reader users from discovering the element or understanding why it is disabled.
+**Action:** Replaced `disabled` with `aria-disabled` on custom selection buttons, handled the disabled logic manually within the `onClick` event, manually applied disabled styles via conditional class names, and added `aria-pressed` to correctly convey toggle states.
