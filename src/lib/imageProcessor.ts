@@ -236,5 +236,5 @@ export async function compressImageToTarget(imageSrc: string, settings: TargetCo
     return smallestResult;
   }
 
-  throw new Error("This image could not be reduced to the selected file-size limit.");
+  throw new Error(`This image could not be reduced to the selected file-size limit. Smallest achieved: ${smallestResult ? (smallestResult.size / (1024 * 1024)).toFixed(2) + " MB" : "Unknown"}`);
 }
