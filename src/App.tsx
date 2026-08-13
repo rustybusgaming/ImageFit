@@ -135,9 +135,15 @@ export default function App() {
               {isDesktop ? <DesktopControls onOpenMedia={() => void openDesktopMedia()} /> : null}
               <button
                 type="button"
-                onClick={handleReset}
-                disabled={!image}
-                className="inline-flex items-center justify-center gap-2 border border-white/15 bg-[#20231e] px-3 py-2 text-sm font-semibold text-[#e8eadf] transition hover:border-[#d7ff47] hover:text-[#d7ff47] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] focus-visible:ring-offset-2 focus-visible:ring-offset-[#151714] disabled:cursor-not-allowed disabled:opacity-40"
+                onClick={(e) => {
+                  if (!image) {
+                    e.preventDefault();
+                    return;
+                  }
+                  handleReset();
+                }}
+                aria-disabled={!image}
+                className="inline-flex items-center justify-center gap-2 border border-white/15 bg-[#20231e] px-3 py-2 text-sm font-semibold text-[#e8eadf] transition hover:border-[#d7ff47] hover:text-[#d7ff47] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] focus-visible:ring-offset-2 focus-visible:ring-offset-[#151714] aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
               >
                 <RefreshCcw className="h-4 w-4" />
                 Start over

@@ -282,19 +282,28 @@ export default function VideoSquisher({ sourceFiles }: Props) {
         <div>
           <p className="text-sm font-medium text-[#fff5ee]">Audio</p>
           <div className="mt-2 grid gap-2">
-            {AUDIO_PRESETS.map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => setAudio(preset.id)}
-                disabled={format === "gif"}
-                className={`border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
-                  preset.id === audio ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
-                } disabled:cursor-not-allowed disabled:opacity-40`}
-              >
-                {preset.label}
-              </button>
-            ))}
+            {AUDIO_PRESETS.map((preset) => {
+              const isDisabled = format === "gif";
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={(e) => {
+                    if (isDisabled) {
+                      e.preventDefault();
+                      return;
+                    }
+                    setAudio(preset.id);
+                  }}
+                  aria-disabled={isDisabled}
+                  className={`border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
+                    preset.id === audio ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
+                  } aria-disabled:cursor-not-allowed aria-disabled:opacity-40`}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
           </div>
         </div>
         <div>
@@ -375,11 +384,17 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                 <button
                   key={preset.id}
                   type="button"
-                  disabled={!supported}
-                  onClick={() => setEncoder(preset.id)}
+                  aria-disabled={!supported}
+                  onClick={(e) => {
+                    if (!supported) {
+                      e.preventDefault();
+                      return;
+                    }
+                    setEncoder(preset.id);
+                  }}
                   className={`border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
                     encoder === preset.id ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
-                  } disabled:cursor-not-allowed disabled:opacity-40`}
+                  } aria-disabled:cursor-not-allowed aria-disabled:opacity-40`}
                 >
                   <span className="block">{preset.label}</span>
                   <span className="mt-1 block font-normal text-[#aeb2a5]">{preset.description}</span>
@@ -393,9 +408,15 @@ export default function VideoSquisher({ sourceFiles }: Props) {
 
       <button
         type="button"
-        disabled={isCompressing || isInspecting}
-        onClick={() => void squishVideos()}
-        className="mt-4 inline-flex w-full items-center justify-center gap-2 bg-[#ff7448] px-5 py-3 text-sm font-bold text-[#21100b] transition hover:bg-[#ff9a7b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] disabled:cursor-not-allowed disabled:bg-[#6d392d] disabled:text-[#e8bbae]"
+        aria-disabled={isCompressing || isInspecting}
+        onClick={(e) => {
+          if (isCompressing || isInspecting) {
+            e.preventDefault();
+            return;
+          }
+          void squishVideos();
+        }}
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 bg-[#ff7448] px-5 py-3 text-sm font-bold text-[#21100b] transition hover:bg-[#ff9a7b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] aria-disabled:cursor-not-allowed aria-disabled:bg-[#6d392d] aria-disabled:text-[#e8bbae]"
       >
         {isCompressing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shrink className="h-4 w-4" />}
         {isCompressing ? `Encoding ${Math.round(progress * 100)}%` : `Make ${sourceFiles.length} ${resolution} ${format.toUpperCase()} file${sourceFiles.length === 1 ? "" : "s"}`}

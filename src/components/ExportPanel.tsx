@@ -269,9 +269,16 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
       </div>
 
       <button
-        disabled={platforms.length === 0 || isExporting}
-        onClick={exportImages}
-        className="mt-5 inline-flex w-full items-center justify-center gap-2 bg-[#d7ff47] px-5 py-3 text-sm font-bold text-[#141610] transition hover:bg-[#e4ff80] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] focus-visible:ring-offset-2 focus-visible:ring-offset-[#151714] disabled:cursor-not-allowed disabled:bg-[#3a4032] disabled:text-[#aeb2a5]"
+        type="button"
+        aria-disabled={platforms.length === 0 || isExporting}
+        onClick={(e) => {
+          if (platforms.length === 0 || isExporting) {
+            e.preventDefault();
+            return;
+          }
+          void exportImages();
+        }}
+        className="mt-5 inline-flex w-full items-center justify-center gap-2 bg-[#d7ff47] px-5 py-3 text-sm font-bold text-[#141610] transition hover:bg-[#e4ff80] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] focus-visible:ring-offset-2 focus-visible:ring-offset-[#151714] aria-disabled:cursor-not-allowed aria-disabled:bg-[#3a4032] aria-disabled:text-[#aeb2a5]"
       >
         {isExporting ? (
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
