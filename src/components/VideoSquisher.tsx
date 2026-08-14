@@ -249,6 +249,7 @@ export default function VideoSquisher({ sourceFiles }: Props) {
             key={preset.id}
             type="button"
             onClick={() => setPresetId(preset.id)}
+            aria-pressed={preset.id === presetId}
             className={`border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
               preset.id === presetId ? "border-[#ff7448] bg-[#2b1913] shadow-[3px_3px_0_#ff7448]" : "border-[#ff7448]/20 bg-[#211814] hover:border-[#ff7448]/60"
             }`}
@@ -267,6 +268,7 @@ export default function VideoSquisher({ sourceFiles }: Props) {
               key={preset.id}
               type="button"
               onClick={() => setResolution(preset.id)}
+              aria-pressed={preset.id === resolution}
               className={`border px-2 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
                 preset.id === resolution ? "border-[#ff7448] bg-[#2b1913]" : "border-[#ff7448]/20 bg-[#211814] hover:border-[#ff7448]/60"
               }`}
@@ -286,11 +288,19 @@ export default function VideoSquisher({ sourceFiles }: Props) {
               <button
                 key={preset.id}
                 type="button"
-                onClick={() => setAudio(preset.id)}
-                disabled={format === "gif"}
+                onClick={(e) => {
+                  if (format === "gif") {
+                    e.preventDefault();
+                    return;
+                  }
+                  setAudio(preset.id);
+                }}
+                aria-disabled={format === "gif"}
+                aria-pressed={preset.id === audio}
+                title={format === "gif" ? "GIF does not support audio" : undefined}
                 className={`border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
                   preset.id === audio ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
-                } disabled:cursor-not-allowed disabled:opacity-40`}
+                } aria-disabled:cursor-not-allowed aria-disabled:opacity-40`}
               >
                 {preset.label}
               </button>
@@ -305,6 +315,7 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                 key={value}
                 type="button"
                 onClick={() => setFrameRate(value)}
+                aria-pressed={value === frameRate}
                 className={`border px-2 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
                   value === frameRate ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
                 }`}
@@ -328,6 +339,7 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                     setEncoder("software");
                   }
                 }}
+                aria-pressed={preset.id === format}
                 className={`border px-2 py-2 text-xs font-semibold uppercase transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
                   preset.id === format ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
                 }`}
@@ -351,6 +363,7 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                   setCodec(preset.id);
                   setEncoder("software");
                 }}
+                aria-pressed={preset.id === codec}
                 className={`border px-2 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
                   preset.id === codec ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
                 }`}
@@ -375,11 +388,19 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                 <button
                   key={preset.id}
                   type="button"
-                  disabled={!supported}
-                  onClick={() => setEncoder(preset.id)}
+                  onClick={(e) => {
+                    if (!supported) {
+                      e.preventDefault();
+                      return;
+                    }
+                    setEncoder(preset.id);
+                  }}
+                  aria-disabled={!supported}
+                  aria-pressed={preset.id === encoder}
+                  title={!supported ? "Unsupported on this computer" : undefined}
                   className={`border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
                     encoder === preset.id ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
-                  } disabled:cursor-not-allowed disabled:opacity-40`}
+                  } aria-disabled:cursor-not-allowed aria-disabled:opacity-40`}
                 >
                   <span className="block">{preset.label}</span>
                   <span className="mt-1 block font-normal text-[#aeb2a5]">{preset.description}</span>
