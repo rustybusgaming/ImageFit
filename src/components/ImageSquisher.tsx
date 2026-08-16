@@ -81,6 +81,7 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
           <button
             key={preset.id}
             type="button"
+            aria-pressed={presetId === preset.id}
             onClick={() => setPresetId(preset.id)}
             className={`border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
               presetId === preset.id ? "border-[#ff7448] bg-[#2b1913] shadow-[3px_3px_0_#ff7448]" : "border-[#ff7448]/20 bg-[#211814] hover:border-[#ff7448]/60"
@@ -94,11 +95,18 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
 
       <button
         type="button"
-        disabled={isCompressing}
-        onClick={squishImage}
-        className="mt-4 inline-flex w-full items-center justify-center gap-2 bg-[#ff7448] px-5 py-3 text-sm font-bold text-[#21100b] transition hover:bg-[#ff9a7b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] disabled:cursor-not-allowed disabled:bg-[#6d392d] disabled:text-[#e8bbae]"
+        aria-disabled={isCompressing}
+        title={isCompressing ? "Squishing in progress..." : undefined}
+        onClick={(e) => {
+          if (isCompressing) {
+            e.preventDefault();
+            return;
+          }
+          void squishImage();
+        }}
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 bg-[#ff7448] px-5 py-3 text-sm font-bold text-[#21100b] transition hover:bg-[#ff9a7b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] aria-disabled:cursor-not-allowed aria-disabled:bg-[#6d392d] aria-disabled:text-[#e8bbae]"
       >
-        {isCompressing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shrink className="h-4 w-4" />}
+        {isCompressing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Shrink className="h-4 w-4" aria-hidden="true" />}
         {isCompressing ? "Squishing..." : `Squish it: ${selectedPreset.label}`}
         {!isCompressing && <Download className="h-4 w-4" />}
       </button>
