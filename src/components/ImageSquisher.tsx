@@ -21,6 +21,13 @@ const SQUISH_PRESETS: SquishPreset[] = [
   { id: "crunchy", label: "Crunchy", description: "Smaller, with a little crunch.", settings: { format: "webp", quality: 0.58, scale: 0.82, effect: "pop" } },
   { id: "potato", label: "Potato", description: "Alarmingly compact. Deliciously pixelated.", settings: { format: "jpg", quality: 0.3, scale: 0.55, effect: "warm" } },
   { id: "deep-fried", label: "Deep fried", description: "Maximum meme energy. Minimum bytes.", settings: { format: "jpg", quality: 0.14, scale: 0.38, effect: "pop" } },
+  { id: "webp-high", label: "WebP High", description: "High quality WebP. Original resolution.", settings: { format: "webp", quality: 0.95, scale: 1, effect: "none" } },
+  { id: "webp-med", label: "WebP Medium", description: "Medium quality WebP. Original resolution.", settings: { format: "webp", quality: 0.75, scale: 1, effect: "none" } },
+  { id: "webp-low", label: "WebP Low", description: "Low quality WebP. Original resolution.", settings: { format: "webp", quality: 0.5, scale: 1, effect: "none" } },
+  { id: "jpg-high", label: "JPEG High", description: "High quality JPEG. Original resolution.", settings: { format: "jpg", quality: 0.95, scale: 1, effect: "none" } },
+  { id: "jpg-med", label: "JPEG Medium", description: "Medium quality JPEG. Original resolution.", settings: { format: "jpg", quality: 0.75, scale: 1, effect: "none" } },
+  { id: "jpg-low", label: "JPEG Low", description: "Low quality JPEG. Original resolution.", settings: { format: "jpg", quality: 0.5, scale: 1, effect: "none" } },
+  { id: "discord-25mb", label: "Discord 25 MB", description: "WebP tuned to fit Discord's 25 MB upload limit.", settings: { format: "webp", quality: 0.95, scale: 1, effect: "none", maxBytes: 25 * 1024 * 1024 } },
   { id: "discord-10mb", label: "Discord 10 MB", description: "WebP tuned to fit Discord's 10 MB upload limit.", settings: { format: "webp", quality: 0.9, scale: 1, effect: "none", maxBytes: 10 * 1024 * 1024 } },
   { id: "discord-5mb", label: "Discord 5 MB", description: "WebP tuned to fit Discord's 5 MB upload limit.", settings: { format: "webp", quality: 0.9, scale: 1, effect: "none", maxBytes: 5 * 1024 * 1024 } },
 ];
@@ -30,6 +37,7 @@ function isTargetCompression(settings: CompressionSettings | TargetCompressionSe
 }
 
 function formatBytes(bytes: number): string {
+  if (bytes <= 0) return "0 KB";
   if (bytes < 1024 * 1024) {
     return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   }
@@ -53,7 +61,7 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
         ? await compressImageToTarget(image, selectedPreset.settings)
         : await compressImage(image, selectedPreset.settings);
       const sourceSize = sourceFile?.size;
-      const saved = sourceSize ? Math.round((1 - blob.size / sourceSize) * 100) : null;
+      const saved = (sourceSize && sourceSize > 0) ? Math.round((1 - blob.size / sourceSize) * 100) : null;
       setResult(saved !== null && saved > 0 ? `${formatBytes(blob.size)} · ${saved}% smaller` : `${formatBytes(blob.size)} ready`);
       await downloadBlob(blob, `imagefit-${selectedPreset.id}.${selectedPreset.settings.format}`);
     } catch (compressionError) {
@@ -82,9 +90,8 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
             key={preset.id}
             type="button"
             onClick={() => setPresetId(preset.id)}
-            className={`border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
-              presetId === preset.id ? "border-[#ff7448] bg-[#2b1913] shadow-[3px_3px_0_#ff7448]" : "border-[#ff7448]/20 bg-[#211814] hover:border-[#ff7448]/60"
-            }`}
+            aria-pressed={presetId === preset.id}
+            className="border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] border-[#ff7448]/20 bg-[#211814] hover:border-[#ff7448]/60 aria-pressed:border-[#ff7448] aria-pressed:bg-[#2b1913] aria-pressed:shadow-[3px_3px_0_#ff7448] aria-pressed:hover:border-[#ff7448]"
           >
             <span className="block text-sm font-semibold text-[#fff5ee]">{preset.label}</span>
             <span className="mt-1 block text-xs leading-4 text-[#e8bbae]">{preset.description}</span>
@@ -94,9 +101,12 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
 
       <button
         type="button"
-        disabled={isCompressing}
-        onClick={squishImage}
-        className="mt-4 inline-flex w-full items-center justify-center gap-2 bg-[#ff7448] px-5 py-3 text-sm font-bold text-[#21100b] transition hover:bg-[#ff9a7b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] disabled:cursor-not-allowed disabled:bg-[#6d392d] disabled:text-[#e8bbae]"
+        aria-disabled={isCompressing}
+        onClick={(e) => {
+          if (isCompressing) { e.preventDefault(); return; }
+          void squishImage();
+        }}
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 bg-[#ff7448] px-5 py-3 text-sm font-bold text-[#21100b] transition hover:bg-[#ff9a7b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] aria-disabled:cursor-not-allowed aria-disabled:bg-[#6d392d] aria-disabled:text-[#e8bbae]"
       >
         {isCompressing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shrink className="h-4 w-4" />}
         {isCompressing ? "Squishing..." : `Squish it: ${selectedPreset.label}`}
