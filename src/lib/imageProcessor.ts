@@ -1,4 +1,8 @@
 import type { PlatformPreset } from "../data/platforms";
+import { applyEffectOnGPU } from "./webglEffects";
+import { getCanvasFilter, renderCompress, renderResize } from "./imageRenderCore";
+import type { AnyCanvas, CanvasBackend } from "./imageRenderCore";
+import { runRenderJob } from "./renderPool";
 
 export interface ImageTransform {
   crop: { x: number; y: number; width: number; height: number };
@@ -28,56 +32,50 @@ export interface TargetCompressionSettings extends CompressionSettings {
   maxBytes: number;
 }
 
-const MIME_TYPES: Record<OutputFormat, string> = {
-  jpg: "image/jpeg",
-  png: "image/png",
-  webp: "image/webp",
+const domBackend: CanvasBackend = {
+  create(width, height) {
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas 2D context not available");
+    return { canvas, ctx };
+  },
+  toBlob(canvas: AnyCanvas, type, quality) {
+    return new Promise((resolve, reject) => {
+      (canvas as HTMLCanvasElement).toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error(`Failed to create ${type} blob`))),
+        type,
+        quality
+      );
+    });
+  },
 };
 
-function drawBackground(
-  ctx: CanvasRenderingContext2D,
-  canvas: HTMLCanvasElement,
-  image: HTMLImageElement,
-  settings: ExportSettings
-): void {
-  if (settings.background === "transparent") {
-    return;
-  }
+/**
+ * Object URLs are re-read once per export batch, so the fetched Blob is held for the active
+ * source. The Blob is only a handle to the already-loaded bytes; the decode is what costs.
+ */
+let sourceCache: { key: string; blob: Promise<Blob> } | null = null;
 
-  if (settings.background === "solid" || settings.background === "cover") {
-    ctx.fillStyle = settings.backgroundColor;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    return;
-  }
+function getSourceBlob(imageSrc: string): Promise<Blob> {
+  if (sourceCache?.key === imageSrc) return sourceCache.blob;
 
-  if (settings.background === "gradient") {
-    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-    gradient.addColorStop(0, settings.backgroundColor);
-    gradient.addColorStop(1, "#171d35");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    return;
-  }
+  const blob = fetch(imageSrc).then((response) => {
+    if (!response.ok) throw new Error("Failed to load image");
+    return response.blob();
+  });
 
-  ctx.save();
-  ctx.filter = "blur(28px) brightness(0.72)";
-  const scale = Math.max(canvas.width / image.width, canvas.height / image.height);
-  const width = image.width * scale;
-  const height = image.height * scale;
-  ctx.drawImage(image, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
-  ctx.restore();
+  sourceCache = { key: imageSrc, blob };
+  return blob;
 }
 
-function getCanvasFilter(effect: ImageEffect): string {
-  switch (effect) {
-    case "mono":
-      return "grayscale(1) contrast(1.15)";
-    case "warm":
-      return "sepia(0.45) saturate(1.25) contrast(1.05)";
-    case "pop":
-      return "saturate(1.6) contrast(1.15)";
-    default:
-      return "none";
+/** Main-thread fallback for browsers without Worker + OffscreenCanvas support. */
+async function decodeOnMainThread(imageSrc: string): Promise<ImageBitmap> {
+  try {
+    return await createImageBitmap(await getSourceBlob(imageSrc));
+  } catch (error) {
+    throw new Error("Failed to load image", { cause: error });
   }
 }
 
@@ -93,120 +91,55 @@ export async function resizeImage(
     effect: "none",
   }
 ): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
+  const job = {
+    kind: "resize",
+    preset: { width: preset.width, height: preset.height },
+    transform,
+    settings,
+  } as const;
 
-    img.onload = () => {
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = preset.width;
-        canvas.height = preset.height;
+  const queued = runRenderJob(imageSrc, await getSourceBlob(imageSrc), job);
+  if (queued) return queued;
 
-        const ctx = canvas.getContext("2d");
+  const source = await decodeOnMainThread(imageSrc);
+  const treated = await applyEffectOnGPU(source, settings.effect);
 
-        if (!ctx) {
-          reject(new Error("Canvas 2D context not available"));
-          return;
-        }
-
-        const source = transform?.crop ?? {
-          x: 0,
-          y: 0,
-          width: img.width,
-          height: img.height,
-        };
-        const isContain = settings.background !== "cover";
-        const scale = isContain
-          ? Math.min(preset.width / source.width, preset.height / source.height)
-          : Math.max(preset.width / source.width, preset.height / source.height);
-
-        const width = source.width * scale;
-        const height = source.height * scale;
-        const x = (preset.width - width) / 2;
-        const y = (preset.height - height) / 2;
-
-        drawBackground(ctx, canvas, img, settings);
-        ctx.filter = getCanvasFilter(settings.effect);
-
-        if (transform?.rotation) {
-          const rotationCanvas = document.createElement("canvas");
-          const rotationContext = rotationCanvas.getContext("2d");
-
-          if (!rotationContext) {
-            reject(new Error("Canvas 2D context not available"));
-            return;
-          }
-
-          const radians = (transform.rotation * Math.PI) / 180;
-          const sin = Math.abs(Math.sin(radians));
-          const cos = Math.abs(Math.cos(radians));
-          rotationCanvas.width = Math.ceil(img.width * cos + img.height * sin);
-          rotationCanvas.height = Math.ceil(img.width * sin + img.height * cos);
-          rotationContext.translate(rotationCanvas.width / 2, rotationCanvas.height / 2);
-          rotationContext.rotate(radians);
-          rotationContext.drawImage(img, -img.width / 2, -img.height / 2);
-          ctx.drawImage(rotationCanvas, source.x, source.y, source.width, source.height, x, y, width, height);
-        } else {
-          ctx.drawImage(img, source.x, source.y, source.width, source.height, x, y, width, height);
-        }
-
-        canvas.toBlob(
-          (blob) => {
-            if (blob) {
-              resolve(blob);
-            } else {
-              reject(new Error(`Failed to create ${settings.format} blob`));
-            }
-          },
-          MIME_TYPES[settings.format],
-          settings.format === "png" ? undefined : settings.quality
-        );
-      } catch (err) {
-        reject(err instanceof Error ? err : new Error("Unknown error during image processing"));
-      }
-    };
-
-    img.onerror = () => {
-      reject(new Error("Failed to load image"));
-    };
-
-    img.src = imageSrc;
-  });
+  try {
+    return await renderResize(domBackend, {
+      source,
+      foreground: treated ?? source,
+      canvasFilter: treated ? "none" : getCanvasFilter(settings.effect),
+      preset,
+      transform,
+      settings,
+    });
+  } finally {
+    treated?.close();
+    source.close();
+  }
 }
 
 export async function compressImage(imageSrc: string, settings: CompressionSettings): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
+  const job = { kind: "compress", scale: settings.scale, settings } as const;
 
-    image.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(image.width * settings.scale));
-      canvas.height = Math.max(1, Math.round(image.height * settings.scale));
-      const ctx = canvas.getContext("2d");
+  const queued = runRenderJob(imageSrc, await getSourceBlob(imageSrc), job);
+  if (queued) return queued;
 
-      if (!ctx) {
-        reject(new Error("Canvas 2D context not available"));
-        return;
-      }
+  const source = await decodeOnMainThread(imageSrc);
+  const treated = await applyEffectOnGPU(source, settings.effect);
 
-      ctx.filter = getCanvasFilter(settings.effect);
-      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob(
-        (blob) => {
-          if (blob) {
-            resolve(blob);
-          } else {
-            reject(new Error(`Failed to compress image as ${settings.format}`));
-          }
-        },
-        MIME_TYPES[settings.format],
-        settings.quality
-      );
-    };
-
-    image.onerror = () => reject(new Error("Failed to load image for compression"));
-    image.src = imageSrc;
-  });
+  try {
+    return await renderCompress(domBackend, {
+      foreground: treated ?? source,
+      canvasFilter: treated ? "none" : getCanvasFilter(settings.effect),
+      scale: settings.scale,
+      quality: settings.quality,
+      format: settings.format,
+    });
+  } finally {
+    treated?.close();
+    source.close();
+  }
 }
 
 const MIN_TARGET_QUALITY = 0.42;

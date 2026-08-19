@@ -62,6 +62,7 @@ const ENCODER_PRESETS: Array<{ id: VideoEncoderEngine; label: string; descriptio
   { id: "qsv", label: "Intel Quick Sync", description: "Intel GPU" },
   { id: "amf", label: "AMD AMF", description: "AMD GPU" },
   { id: "videotoolbox", label: "Apple VideoToolbox", description: "Apple hardware" },
+  { id: "vaapi", label: "Linux VAAPI", description: "Intel or AMD on Linux" },
 ];
 
 const HARDWARE_ENCODERS: Record<Exclude<VideoEncoderEngine, "software">, Partial<Record<VideoCodec, string>>> = {
@@ -69,6 +70,7 @@ const HARDWARE_ENCODERS: Record<Exclude<VideoEncoderEngine, "software">, Partial
   qsv: { h264: "h264_qsv", h265: "hevc_qsv", av1: "av1_qsv" },
   amf: { h264: "h264_amf", h265: "hevc_amf", av1: "av1_amf" },
   videotoolbox: { h264: "h264_videotoolbox", h265: "hevc_videotoolbox" },
+  vaapi: { h264: "h264_vaapi", h265: "hevc_vaapi", av1: "av1_vaapi" },
 };
 
 type QueueStatus = "waiting" | "encoding" | "ready" | "failed" | "cancelled";

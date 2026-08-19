@@ -44,6 +44,21 @@ test("desktop output filenames are stable and safe", () => {
   );
 });
 
+test("hardware engines are accepted and named in the output filename", () => {
+  for (const encoder of ["software", "nvenc", "qsv", "amf", "videotoolbox", "vaapi"]) {
+    assert.doesNotThrow(() => assertVideoPayload({ ...validPayload, encoder }));
+  }
+
+  assert.equal(
+    getOutputFilename("/media/clip.mp4", { ...validPayload, encoder: "vaapi" }),
+    "clip-discord-10mb-h264-vaapi.mp4"
+  );
+  assert.equal(
+    getOutputFilename("/media/clip.mp4", { ...validPayload, encoder: "software" }),
+    "clip-discord-10mb-h264.mp4"
+  );
+});
+
 test("desktop output filenames never contain path separators", () => {
   for (const presetId of ["../../escape", "..\\..\\escape", "a/b/c"]) {
     const filename = getOutputFilename("/media/clip.mp4", { ...validPayload, presetId });

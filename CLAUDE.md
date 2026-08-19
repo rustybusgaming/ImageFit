@@ -66,9 +66,15 @@ They are not identical, and the differences matter:
   reject the result if it overshoots. There is no bitrate retry loop (the image path in
   `compressImageToTarget` does iterate).
 
+Hardware encoding is desktop-only. Engine→encoder names live in `HARDWARE_ENCODERS`; VAAPI
+additionally needs a DRM render node, so `getVaapiDevice()` gates both its availability and its
+filter chain (`format=nv12,hwupload`), and non-VAAPI jobs get `-hwaccel auto` for decode, which
+falls back to software on its own.
+
 When changing FFmpeg arguments, verify them against the real binary rather than reasoning
 about them — `node_modules/ffmpeg-static` is present after install and accepts the same
-argument arrays.
+argument arrays. The browser render path can be exercised end to end with the pre-installed
+Chromium: run `pnpm dev` and drive `/src/lib/*.ts` through `page.evaluate` dynamic imports.
 
 ### IPC validation boundary
 
@@ -85,18 +91,38 @@ callback.
 
 ### Image export pipeline
 
-`src/lib/imageProcessor.ts` is pure canvas work, with two independent paths:
+`src/lib/imageProcessor.ts` is the public API (`resizeImage` for `ExportPanel`'s platform
+presets, `compressImage` / `compressImageToTarget` for `ImageSquisher`, which works on the
+original upload and deliberately ignores the editor crop and export settings). It owns no
+drawing code — it decides where the work runs:
 
-- `resizeImage` — used by `ExportPanel` for platform presets. `transform.crop` comes from
-  react-easy-crop's `croppedAreaPixels` and is expressed **relative to the rotated bounding
-  box**, so rotation is applied by drawing into an intermediate canvas sized
-  `w·cos+h·sin × w·sin+h·cos` before cropping out of it (this matches react-easy-crop's own
-  `getCroppedImg` example — don't "fix" it to crop-then-rotate).
-- `compressImage` / `compressImageToTarget` — used by `ImageSquisher`, which operates on the
-  original upload and deliberately ignores the editor crop and export settings.
+1. `renderPool.ts` dispatches to a pool of `imageWorker.ts` workers (OffscreenCanvas), so a
+   preset batch composites in parallel and off the main thread. Preferred whenever
+   `Worker` + `OffscreenCanvas.convertToBlob` + `createImageBitmap` are available.
+2. Otherwise the same job runs inline on a DOM canvas.
 
-`background === "cover"` doubles as the fill/crop flag: it selects `Math.max` scaling
-(fill and overflow), every other background mode selects `Math.min` (contain and letterbox).
+Both call **`imageRenderCore.ts`**, which holds the only copy of the compositing logic and is
+parameterised by a `CanvasBackend` (offscreen or DOM) so the two runtimes cannot drift apart —
+unlike the video pipelines below. New drawing behaviour belongs there, not in either caller.
+
+Colour treatments have two equivalent implementations that must stay in agreement:
+`webglEffects.ts` runs them as a WebGL2 fragment shader (composed colour matrices plus a
+contrast transfer, following the Filter Effects spec), and `getCanvasFilter` returns the
+equivalent CSS filter string used when WebGL2 is unavailable. They agree to within ~2/255 per
+channel; if you change one, re-check it against the other. The GPU pass is applied to the
+foreground bitmap only, which is what keeps the blurred backdrop untreated.
+
+Two details worth not "fixing":
+
+- `transform.crop` comes from react-easy-crop's `croppedAreaPixels` and is expressed **relative
+  to the rotated bounding box**, so rotation is applied by drawing into an intermediate canvas
+  sized `w·cos+h·sin × w·sin+h·cos` before cropping out of it (this matches react-easy-crop's
+  own `getCroppedImg` example — don't reorder it to crop-then-rotate).
+- `background === "cover"` doubles as the fill/crop flag: it selects `Math.max` scaling
+  (fill and overflow), every other background mode selects `Math.min` (contain and letterbox).
+
+`gpuImageProcessor.ts` reports which of these paths is live (`getRenderPath()`) for the desktop
+panel; it decides nothing itself.
 
 ### State ownership
 
