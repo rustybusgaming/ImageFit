@@ -43,3 +43,13 @@ test("desktop output filenames are stable and safe", () => {
     "C-media-clip-discord-10mb-vp9-nvenc.webm"
   );
 });
+
+test("desktop output filenames never contain path separators", () => {
+  for (const presetId of ["../../escape", "..\\..\\escape", "a/b/c"]) {
+    const filename = getOutputFilename("/media/clip.mp4", { ...validPayload, presetId });
+    assert.ok(!filename.includes("/") && !filename.includes("\\"), `expected a flat filename, got ${filename}`);
+    assert.ok(!filename.includes(".."), `expected no parent-directory hop, got ${filename}`);
+  }
+
+  assert.equal(getOutputFilename("/media/../../etc/passwd.mp4", validPayload), "passwd-discord-10mb-h264.mp4");
+});

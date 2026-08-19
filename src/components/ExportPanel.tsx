@@ -287,9 +287,9 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
         )}
         {isExporting
           ? "Exporting..."
-          : platforms.length === 1
-          ? "Export image"
-          : `Export ${platforms.length} images`}
+          : platforms.length > 1
+          ? `Export ${platforms.length} images`
+          : "Export image"}
       </button>
 
       {error ? <p className="mt-3 text-sm text-[#ff9a7b]">{error}</p> : null}

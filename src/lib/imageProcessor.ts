@@ -155,7 +155,7 @@ export async function resizeImage(
             if (blob) {
               resolve(blob);
             } else {
-              reject(new Error(              `Failed to create ${settings.format} blob`));
+              reject(new Error(`Failed to create ${settings.format} blob`));
             }
           },
           MIME_TYPES[settings.format],
@@ -209,31 +209,28 @@ export async function compressImage(imageSrc: string, settings: CompressionSetti
   });
 }
 
+const MIN_TARGET_QUALITY = 0.42;
+const MIN_TARGET_SCALE = 0.2;
+
 export async function compressImageToTarget(imageSrc: string, settings: TargetCompressionSettings): Promise<Blob> {
   let quality = settings.quality;
   let scale = settings.scale;
-  let smallestResult: Blob | null = null;
 
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const result = await compressImage(imageSrc, { ...settings, quality, scale });
-
-    if (!smallestResult || result.size < smallestResult.size) {
-      smallestResult = result;
-    }
 
     if (result.size <= settings.maxBytes) {
       return result;
     }
 
-    if (quality > 0.42) {
-      quality = Math.max(0.42, quality - 0.1);
+    if (quality > MIN_TARGET_QUALITY) {
+      quality = Math.max(MIN_TARGET_QUALITY, quality - 0.1);
+    } else if (scale > MIN_TARGET_SCALE) {
+      scale = Math.max(MIN_TARGET_SCALE, scale * 0.82);
     } else {
-      scale = Math.max(0.2, scale * 0.82);
+      // Both dials are already at their floor, so further attempts would repeat this one.
+      break;
     }
-  }
-
-  if (smallestResult && smallestResult.size <= settings.maxBytes) {
-    return smallestResult;
   }
 
   throw new Error("This image could not be reduced to the selected file-size limit.");

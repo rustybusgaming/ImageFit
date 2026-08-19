@@ -1,7 +1,7 @@
-  import { useState } from "react";
+import { useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { FileImage, FileVideo, UploadCloud } from "lucide-react";
-  import { isDesktopApp } from "../lib/desktopVideoProcessor";
+import { isDesktopApp } from "../lib/desktopVideoProcessor";
 
 interface UploadZoneProps {
   onUpload: (files: File[]) => void;
@@ -31,12 +31,18 @@ export default function UploadZone({ onUpload }: UploadZoneProps) {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: {
       "image/*": [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"],
-      "video/*": [".mp4", ".webm", ".mov", ".m4v"],
+      "video/*": [".mp4", ".webm", ".mov", ".m4v", ".avi", ".mkv"],
     },
     multiple: true,
     onDrop: (acceptedFiles) => {
       if (acceptedFiles.length > 0) {
         handleFiles(acceptedFiles);
+      }
+    },
+    // Without this, files the dropzone filters out land nowhere and the drop looks like it did nothing.
+    onDropRejected: (rejections) => {
+      if (rejections.length > 0) {
+        setError("Please choose a valid image or video file.");
       }
     },
   });
@@ -65,7 +71,7 @@ export default function UploadZone({ onUpload }: UploadZoneProps) {
         </p>
         <p className="mt-2 text-sm text-[#b7baaf]">or click to browse from your device</p>
         <p className="mt-5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9ea296]">
-          Images: PNG · JPG · WEBP · GIF · SVG up to 50 MB &nbsp;•&nbsp; Videos: MP4 · WEBM · MOV {supportsLargeVideoFiles ? "any local size" : "up to 3 GB"}
+          Images: PNG · JPG · WEBP · GIF · SVG up to 50 MB &nbsp;•&nbsp; Videos: MP4 · WEBM · MOV · MKV · AVI {supportsLargeVideoFiles ? "any local size" : "up to 3 GB"}
         </p>
 
         {error ? <p className="mt-4 text-sm text-[#ff9a7b]">{error}</p> : null}

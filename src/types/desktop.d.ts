@@ -27,5 +27,6 @@ interface Window {
       },
       onProgress: (progress: number) => void
     ): Promise<{ outputPath: string; size: number }>;
+    cancelVideoEncode(): Promise<boolean>;
   };
 }

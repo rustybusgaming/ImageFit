@@ -15,6 +15,10 @@ export async function getAvailableVideoEncoders(): Promise<string[]> {
   return window.imageFitDesktop?.availableVideoEncoders() ?? [];
 }
 
+export function cancelDesktopVideoEncoding(): void {
+  void window.imageFitDesktop?.cancelVideoEncode().catch(() => undefined);
+}
+
 export async function compressDesktopVideoToTarget(
   file: File,
   settings: VideoExportSettings,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useEffectEvent, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useState } from "react";
 import { ArrowRight, Download, FileImage, ImagePlus, LockKeyhole, RefreshCcw, Sparkles, X } from "lucide-react";
 import DesktopControls from "./components/DesktopControls";
 import UploadZone from "./components/UploadZone";
@@ -19,6 +19,12 @@ export default function App() {
   const [videoQueue, setVideoQueue] = useState<File[]>([]);
   const [imageQueue, setImageQueue] = useState<File[]>([]);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const videoSources = useMemo(
+    () => (videoQueue.length > 0 ? videoQueue : imageFile ? [imageFile] : []),
+    [videoQueue, imageFile]
+  );
+  // The crop box should match what the first export actually needs, not a fixed square.
+  const cropAspect = selectedPlatforms[0] ? selectedPlatforms[0].width / selectedPlatforms[0].height : 1;
   const handleDesktopPaths = useEffectEvent((paths: string[]) => {
     const desktop = window.imageFitDesktop;
     if (!desktop) return;
@@ -172,7 +178,7 @@ export default function App() {
               <video className="mt-5 max-h-[640px] w-full bg-[#090a09]" controls src={image} />
             </section>
             <aside className="lg:sticky lg:top-6 lg:self-start">
-              <VideoSquisher sourceFiles={videoQueue.length > 0 ? videoQueue : [imageFile]} />
+              <VideoSquisher sourceFiles={videoSources} />
             </aside>
           </div>
         ) : (
@@ -202,7 +208,7 @@ export default function App() {
                   </div>
                 </section>
               ) : null}
-              <ImageEditor key={imageFile ? `${imageFile.name}-${imageFile.lastModified}` : image} image={image} onChange={handleTransformChange} />
+              <ImageEditor key={imageFile ? `${imageFile.name}-${imageFile.lastModified}` : image} image={image} aspect={cropAspect} onChange={handleTransformChange} />
               <PlatformSelector onSelect={setSelectedPlatforms} />
 
               <div className="border border-white/10 bg-[#151714] p-5 shadow-[0_16px_40px_-28px_rgba(0,0,0,0.9)]">

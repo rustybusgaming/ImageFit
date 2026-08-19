@@ -44,4 +44,5 @@ contextBridge.exposeInMainWorld("imageFitDesktop", {
     return ipcRenderer.invoke("desktop:video-encode", { ...payload, jobId })
       .finally(() => progressCallbacks.delete(jobId));
   },
+  cancelVideoEncode: () => ipcRenderer.invoke("desktop:video-cancel", [...progressCallbacks.keys()]),
 });
