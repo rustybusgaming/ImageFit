@@ -66,10 +66,15 @@ They are not identical, and the differences matter:
   reject the result if it overshoots. There is no bitrate retry loop (the image path in
   `compressImageToTarget` does iterate).
 
-Hardware encoding is desktop-only. Engine→encoder names live in `HARDWARE_ENCODERS`; VAAPI
-additionally needs a DRM render node, so `getVaapiDevice()` gates both its availability and its
-filter chain (`format=nv12,hwupload`), and non-VAAPI jobs get `-hwaccel auto` for decode, which
-falls back to software on its own.
+Hardware encoding is desktop-only. Engine→encoder names live in `HARDWARE_ENCODERS`
+(`desktop/main.cjs`), but whether an engine can actually run lives in `ENGINE_REQUIREMENTS`
+(`desktop/video-config.cjs`), because FFmpeg lists an encoder whenever the build was compiled
+with it — which says nothing about the OS or device behind it. VAAPI needs a DRM render node
+(`getVaapiDevice()`) and is the only engine that changes the filter chain
+(`format=nv12,hwupload`); Media Foundation is Windows-only and VideoToolbox macOS-only, and
+both take software frames like the vendor engines. Adding a platform-bound engine means adding
+it to `ENGINE_REQUIREMENTS` rather than writing a new conditional. Non-VAAPI jobs get
+`-hwaccel auto` for decode, which falls back to software on its own.
 
 When changing FFmpeg arguments, verify them against the real binary rather than reasoning
 about them — `node_modules/ffmpeg-static` is present after install and accepts the same
@@ -79,7 +84,9 @@ Chromium: run `pnpm dev` and drive `/src/lib/*.ts` through `page.evaluate` dynam
 ### IPC validation boundary
 
 `desktop/video-config.cjs` is deliberately Electron-free so it can be unit-tested under
-plain `node --test`; it holds the only tests in the repo. `assertVideoPayload` validates
+plain `node --test`; it holds the only tests in the repo. That is also why the engine
+platform gating lives there rather than in `main.cjs` — its helpers take an optional
+`platform` argument so tests can simulate win32/darwin/linux. `assertVideoPayload` validates
 every renderer-supplied encode payload in the main process, and `getOutputFilename` must
 return a flat, sanitised filename — it is joined onto the user's output directory, so any
 segment interpolated into it needs sanitising. New IPC payload fields belong in its

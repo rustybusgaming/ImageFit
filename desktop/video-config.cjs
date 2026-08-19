@@ -1,3 +1,4 @@
+const fs = require("node:fs");
 const path = require("node:path");
 
 const CODEC_FORMATS = {
@@ -13,11 +14,50 @@ const CODEC_FORMATS = {
   theora: ["ogv"],
 };
 
-const ENGINES = new Set(["software", "nvenc", "qsv", "amf", "videotoolbox", "vaapi"]);
+const ENGINES = new Set(["software", "nvenc", "qsv", "amf", "videotoolbox", "vaapi", "mf"]);
 const AUDIO_MODES = new Set(["keep", "reduced", "mute"]);
 const FRAME_RATES = new Set([15, 24, 30]);
 const HEIGHTS = new Set([480, 720, 1080]);
 const FORMATS = new Set(["mp4", "webm", "mov", "avi", "ogv", "gif"]);
+
+/**
+ * VAAPI encodes through a DRM render node. Without one the encoders may still be listed by
+ * FFmpeg but cannot initialise, so availability is gated on a device actually being present.
+ */
+function getVaapiDevice(platform = process.platform) {
+  if (platform !== "linux") return null;
+
+  try {
+    const nodes = fs.readdirSync("/dev/dri").filter((entry) => entry.startsWith("renderD")).sort();
+    return nodes.length > 0 ? path.join("/dev/dri", nodes[0]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Several engines are tied to one operating system or device. FFmpeg lists an encoder whenever
+ * the build was compiled with it, which says nothing about whether it can initialise here, so
+ * platform-bound engines are checked separately from the encoder listing.
+ */
+const ENGINE_REQUIREMENTS = {
+  vaapi: {
+    isAvailable: (platform) => getVaapiDevice(platform) !== null,
+    message: "No VAAPI render device was found on this computer.",
+  },
+  mf: {
+    isAvailable: (platform) => platform === "win32",
+    message: "Media Foundation encoding is only available on Windows.",
+  },
+  videotoolbox: {
+    isAvailable: (platform) => platform === "darwin",
+    message: "VideoToolbox encoding is only available on macOS.",
+  },
+};
+
+function isEngineSupportedHere(engine, platform = process.platform) {
+  return ENGINE_REQUIREMENTS[engine]?.isAvailable(platform) ?? true;
+}
 
 function isCodecCompatible(codec, format) {
   return format === "gif" || CODEC_FORMATS[codec]?.includes(format) === true;
@@ -47,4 +87,12 @@ function getOutputFilename(inputPath, payload) {
   return `${sourceName}-${presetId}-${payload.codec}${engineSuffix}.${payload.format}`;
 }
 
-module.exports = { CODEC_FORMATS, assertVideoPayload, getOutputFilename, isCodecCompatible };
+module.exports = {
+  CODEC_FORMATS,
+  ENGINE_REQUIREMENTS,
+  assertVideoPayload,
+  getOutputFilename,
+  getVaapiDevice,
+  isCodecCompatible,
+  isEngineSupportedHere,
+};

@@ -1,7 +1,14 @@
 const path = require("node:path");
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { assertVideoPayload, getOutputFilename, isCodecCompatible } = require("../desktop/video-config.cjs");
+const {
+  ENGINE_REQUIREMENTS,
+  assertVideoPayload,
+  getOutputFilename,
+  getVaapiDevice,
+  isCodecCompatible,
+  isEngineSupportedHere,
+} = require("../desktop/video-config.cjs");
 
 const validPayload = {
   inputPath: path.resolve("fixtures/source-video.mp4"),
@@ -45,7 +52,7 @@ test("desktop output filenames are stable and safe", () => {
 });
 
 test("hardware engines are accepted and named in the output filename", () => {
-  for (const encoder of ["software", "nvenc", "qsv", "amf", "videotoolbox", "vaapi"]) {
+  for (const encoder of ["software", "nvenc", "qsv", "amf", "videotoolbox", "vaapi", "mf"]) {
     assert.doesNotThrow(() => assertVideoPayload({ ...validPayload, encoder }));
   }
 
@@ -67,4 +74,32 @@ test("desktop output filenames never contain path separators", () => {
   }
 
   assert.equal(getOutputFilename("/media/../../etc/passwd.mp4", validPayload), "passwd-discord-10mb-h264.mp4");
+});
+
+test("platform-bound engines are only offered on the platform that can run them", () => {
+  assert.equal(isEngineSupportedHere("mf", "win32"), true);
+  assert.equal(isEngineSupportedHere("mf", "linux"), false);
+  assert.equal(isEngineSupportedHere("mf", "darwin"), false);
+
+  assert.equal(isEngineSupportedHere("videotoolbox", "darwin"), true);
+  assert.equal(isEngineSupportedHere("videotoolbox", "win32"), false);
+
+  // VAAPI additionally needs a render node, so it is never available off Linux.
+  assert.equal(isEngineSupportedHere("vaapi", "win32"), false);
+  assert.equal(isEngineSupportedHere("vaapi", "darwin"), false);
+  assert.equal(getVaapiDevice("win32"), null);
+  assert.equal(getVaapiDevice("darwin"), null);
+
+  // Engines with no platform requirement stay available everywhere.
+  for (const platform of ["win32", "linux", "darwin"]) {
+    assert.equal(isEngineSupportedHere("nvenc", platform), true);
+    assert.equal(isEngineSupportedHere("software", platform), true);
+  }
+});
+
+test("every platform-bound engine explains why it is unavailable", () => {
+  for (const [engine, requirement] of Object.entries(ENGINE_REQUIREMENTS)) {
+    assert.equal(typeof requirement.message, "string", `${engine} needs a message`);
+    assert.ok(requirement.message.length > 0, `${engine} needs a non-empty message`);
+  }
 });

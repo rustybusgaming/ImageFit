@@ -4,7 +4,7 @@ const { spawn, spawnSync } = require("node:child_process");
 const path = require("node:path");
 const fs = require("node:fs");
 const https = require("node:https");
-const { assertVideoPayload, getOutputFilename } = require("./video-config.cjs");
+const { ENGINE_REQUIREMENTS, assertVideoPayload, getOutputFilename, getVaapiDevice, isEngineSupportedHere } = require("./video-config.cjs");
 
 const GITHUB_REPO = "rustybusgaming/ImageFit";
 const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases/latest`;
@@ -134,20 +134,8 @@ const HARDWARE_ENCODERS = {
   amf: { h264: "h264_amf", h265: "hevc_amf", av1: "av1_amf" },
   videotoolbox: { h264: "h264_videotoolbox", h265: "hevc_videotoolbox" },
   vaapi: { h264: "h264_vaapi", h265: "hevc_vaapi", av1: "av1_vaapi" },
+  mf: { h264: "h264_mf", h265: "hevc_mf" },
 };
-
-// VAAPI encodes through a DRM render node. Without one the encoders may still be listed by
-// FFmpeg but cannot initialise, so availability is gated on a device actually being present.
-function getVaapiDevice() {
-  if (process.platform !== "linux") return null;
-
-  try {
-    const nodes = fs.readdirSync("/dev/dri").filter((entry) => entry.startsWith("renderD")).sort();
-    return nodes.length > 0 ? path.join("/dev/dri", nodes[0]) : null;
-  } catch {
-    return null;
-  }
-}
 
 function getCodecArgs(codec, engine) {
   if (engine === "software") {
@@ -156,8 +144,8 @@ function getCodecArgs(codec, engine) {
     return args;
   }
 
-  if (engine === "vaapi" && !getVaapiDevice()) {
-    throw new Error("No VAAPI render device was found on this computer.");
+  if (!isEngineSupportedHere(engine)) {
+    throw new Error(ENGINE_REQUIREMENTS[engine].message);
   }
 
   const encoder = HARDWARE_ENCODERS[engine]?.[codec];
@@ -203,9 +191,8 @@ function getAvailableVideoEncoders() {
 
   const result = spawnSync(ffmpegPath, ["-hide_banner", "-encoders"], { encoding: "utf8", windowsHide: true });
   const output = `${result.stdout}\n${result.stderr}`;
-  const hasVaapiDevice = getVaapiDevice() !== null;
   return Object.entries(HARDWARE_ENCODERS)
-    .filter(([engine]) => engine !== "vaapi" || hasVaapiDevice)
+    .filter(([engine]) => isEngineSupportedHere(engine))
     .flatMap(([, encoders]) => Object.values(encoders))
     .filter((encoder, index, encoders) => encoders.indexOf(encoder) === index && output.includes(encoder));
 }
