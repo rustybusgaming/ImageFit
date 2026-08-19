@@ -6,7 +6,7 @@
 
   ## Features
 
-  - Upload JPG, PNG, WebP, GIF, or SVG images up to 20 MB, or MP4, WebM, MOV, and M4V videos up to 250 MB.
+  - Upload JPG, PNG, WebP, GIF, or SVG images up to 50 MB, or MP4, WebM, MOV, M4V, AVI, and MKV videos up to 3 GB in the browser (no size limit in the desktop app).
   - Crop, zoom, and rotate the source image.
   - Export presets for Instagram, Discord, GitHub, LinkedIn, Open Collective, YouTube, Roblox, Twitch, X, and TikTok.
   - Choose JPEG, PNG, or WebP output with adjustable quality.

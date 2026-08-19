@@ -13,7 +13,7 @@ const CODEC_FORMATS = {
   theora: ["ogv"],
 };
 
-const ENGINES = new Set(["software", "nvenc", "qsv", "amf", "videotoolbox"]);
+const ENGINES = new Set(["software", "nvenc", "qsv", "amf", "videotoolbox", "vaapi"]);
 const AUDIO_MODES = new Set(["keep", "reduced", "mute"]);
 const FRAME_RATES = new Set([15, 24, 30]);
 const HEIGHTS = new Set([480, 720, 1080]);
@@ -36,10 +36,15 @@ function assertVideoPayload(payload) {
   if (payload.format === "gif" && payload.audio !== "mute") throw new Error("GIF output must be muted.");
 }
 
+function toSafeNameSegment(value, fallback) {
+  return value.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^[-.]+|-+$/g, "") || fallback;
+}
+
 function getOutputFilename(inputPath, payload) {
-  const sourceName = path.basename(inputPath, path.extname(inputPath)).replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "video";
+  const sourceName = toSafeNameSegment(path.basename(inputPath, path.extname(inputPath)), "video");
+  const presetId = toSafeNameSegment(payload.presetId, "export");
   const engineSuffix = payload.encoder === "software" ? "" : `-${payload.encoder}`;
-  return `${sourceName}-${payload.presetId}-${payload.codec}${engineSuffix}.${payload.format}`;
+  return `${sourceName}-${presetId}-${payload.codec}${engineSuffix}.${payload.format}`;
 }
 
 module.exports = { CODEC_FORMATS, assertVideoPayload, getOutputFilename, isCodecCompatible };

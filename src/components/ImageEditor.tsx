@@ -7,10 +7,11 @@ import type { ImageTransform } from "../lib/imageProcessor";
 
 interface Props {
   image: string;
+  aspect?: number;
   onChange: (transform: ImageTransform) => void;
 }
 
-export default function ImageEditor({ image, onChange }: Props) {
+export default function ImageEditor({ image, aspect = 1, onChange }: Props) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
@@ -58,7 +59,7 @@ export default function ImageEditor({ image, onChange }: Props) {
           crop={crop}
           zoom={zoom}
           rotation={rotation}
-          aspect={1}
+          aspect={aspect}
           onCropChange={setCrop}
           onZoomChange={setZoom}
           onRotationChange={setRotation}
@@ -104,7 +105,7 @@ export default function ImageEditor({ image, onChange }: Props) {
       </div>
       <p className="mt-4 flex items-center gap-2 text-sm text-[#9ea296]">
         <Maximize2 className="h-4 w-4 text-[#aeb2a5]" />
-        Your framing and rotation are applied to every export.
+        Your framing and rotation are applied to every export. The crop box follows the first selected preset.
       </p>
     </div>
   );

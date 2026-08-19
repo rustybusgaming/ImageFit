@@ -8,7 +8,7 @@ export type VideoResolution = "1080p" | "720p" | "480p";
 export type VideoAudioMode = "keep" | "reduced" | "mute";
 export type VideoOutputFormat = "mp4" | "webm" | "mov" | "avi" | "ogv" | "gif";
 export type VideoCodec = "h264" | "h265" | "av1" | "vp8" | "vp9" | "mpeg4" | "prores" | "dnxhd" | "mjpeg" | "theora";
-export type VideoEncoderEngine = "software" | "nvenc" | "qsv" | "amf" | "videotoolbox";
+export type VideoEncoderEngine = "software" | "nvenc" | "qsv" | "amf" | "videotoolbox" | "vaapi";
 
 export interface VideoExportSettings {
   maxBytes: number;
@@ -54,6 +54,14 @@ function getAudioArgs(format: VideoOutputFormat, audio: VideoAudioMode, audioBit
   if (format === "ogv") return ["-c:a", "libvorbis", "-b:a", bitrate];
   if (format === "avi") return ["-c:a", "libmp3lame", "-b:a", bitrate];
   return ["-c:a", "aac", "-b:a", bitrate];
+}
+
+// The comma inside min() has to be escaped or FFmpeg reads it as a filter separator.
+function getVideoFilter(settings: VideoExportSettings): string {
+  const watermarked = `[0:v]fps=${settings.frameRate},scale=-2:min(${VIDEO_HEIGHTS[settings.resolution]}\\,ih)[scaled];[scaled][1:v]overlay=W-w-24:H-h-24`;
+  if (settings.format !== "gif") return `${watermarked}[video]`;
+
+  return `${watermarked}[overlaid];[overlaid]split[palettesource][frames];[palettesource]palettegen=stats_mode=diff[palette];[frames][palette]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle[video]`;
 }
 
 function getVideoMimeType(format: VideoOutputFormat): string {
@@ -109,14 +117,24 @@ function getVideoMetadata(file: File): Promise<{ duration: number; width: number
     const video = document.createElement("video");
     const url = URL.createObjectURL(file);
 
-    video.onloadedmetadata = () => {
+    function release() {
+      video.onloadedmetadata = null;
+      video.onerror = null;
+      video.removeAttribute("src");
+      video.load();
       URL.revokeObjectURL(url);
-      resolve({ duration: video.duration, width: video.videoWidth, height: video.videoHeight });
+    }
+
+    video.onloadedmetadata = () => {
+      const metadata = { duration: video.duration, width: video.videoWidth, height: video.videoHeight };
+      release();
+      resolve(metadata);
     };
     video.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Could not read this video's duration."));
+      release();
+      reject(new Error("Could not read this video's duration. The browser may not support this container format."));
     };
+    video.preload = "metadata";
     video.src = url;
   });
 }
@@ -139,6 +157,10 @@ export async function inspectVideo(file: File): Promise<VideoCompatibility> {
 
   if (metadata.width === 0 || metadata.height === 0) {
     warnings.push("The browser could not determine this video's dimensions.");
+  }
+
+  if (!Number.isFinite(metadata.duration) || metadata.duration <= 0) {
+    warnings.push("The browser could not determine this video's duration, so it cannot be encoded to a size target.");
   }
 
   return { ...metadata, warnings };
@@ -198,7 +220,7 @@ export async function compressVideoToTarget(
   const totalBitrate = Math.floor((usableBytes * 8) / duration);
   const audioBitrate = settings.audio === "keep" ? Math.min(96_000, Math.floor(totalBitrate * 0.2)) : settings.audio === "reduced" ? 48_000 : 0;
   const videoBitrate = Math.max(100_000, totalBitrate - audioBitrate);
-  const filter = `[0:v]fps=${settings.frameRate},scale=-2:min(${VIDEO_HEIGHTS[settings.resolution]}\\,ih)[scaled];[scaled][1:v]overlay=W-w-24:H-h-24[video]`;
+  const filter = getVideoFilter(settings);
   const codec = VIDEO_ENCODERS[settings.codec];
   const encodingArgs = settings.format === "gif"
     ? ["-loop", "0"]
@@ -239,7 +261,7 @@ export async function compressVideoToTarget(
       "-i", watermarkName,
       "-filter_complex", filter,
       "-map", "[video]",
-      ...(settings.format === "mp4" && settings.audio !== "mute" ? ["-map", "0:a?"] : []),
+      ...(settings.format !== "gif" && settings.audio !== "mute" ? ["-map", "0:a?"] : []),
       ...encodingArgs,
       outputName,
     ]);

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { FolderOpen, HardDriveDownload, MonitorCog, RefreshCw, Upload } from "lucide-react";
 import { getAvailableVideoEncoders } from "../lib/desktopVideoProcessor";
-import { getGPUCapabilities, type GPUCapabilities } from "../lib/gpuImageProcessor";
+import { getGPUCapabilities, getRenderPath, type GPUCapabilities, type RenderPath } from "../lib/gpuImageProcessor";
 
 interface Props {
   onOpenMedia: () => void;
@@ -14,6 +14,7 @@ const CAPABILITIES = [
   { name: "Intel Quick Sync", encoders: ["h264_qsv", "hevc_qsv", "av1_qsv"], detail: "H.264, HEVC, and AV1 on supported Intel graphics." },
   { name: "AMD AMF", encoders: ["h264_amf", "hevc_amf", "av1_amf"], detail: "H.264, HEVC, and AV1 on supported AMD graphics." },
   { name: "Apple VideoToolbox", encoders: ["h264_videotoolbox", "hevc_videotoolbox"], detail: "H.264 and HEVC on Apple hardware." },
+  { name: "Linux VAAPI", encoders: ["h264_vaapi", "hevc_vaapi", "av1_vaapi"], detail: "H.264, HEVC, and AV1 through a Linux DRM render node." },
 ] as const;
 
 export default function DesktopControls({ onOpenMedia }: Props) {
@@ -21,6 +22,7 @@ export default function DesktopControls({ onOpenMedia }: Props) {
   const [outputDirectory, setOutputDirectory] = useState("");
   const [encoders, setEncoders] = useState<string[]>([]);
   const [gpu] = useState<GPUCapabilities>(() => getGPUCapabilities());
+  const [renderPath, setRenderPath] = useState<RenderPath>(() => getRenderPath());
   const [update, setUpdate] = useState<{ state: UpdateState; version?: string } | null>(null);
   const desktop = window.imageFitDesktop;
 
@@ -60,7 +62,10 @@ export default function DesktopControls({ onOpenMedia }: Props) {
     <div className="relative">
       <button
         type="button"
-        onClick={() => setIsOpen((open) => !open)}
+        onClick={() => {
+          setIsOpen((open) => !open);
+          setRenderPath(getRenderPath());
+        }}
         className="inline-flex items-center justify-center gap-2 border border-[#d7ff47]/45 bg-[#20251a] px-3 py-2 text-sm font-semibold text-[#d7ff47] transition hover:border-[#d7ff47] hover:bg-[#292f21] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] focus-visible:ring-offset-2 focus-visible:ring-offset-[#151714]"
         aria-expanded={isOpen}
       >
@@ -123,6 +128,13 @@ export default function DesktopControls({ onOpenMedia }: Props) {
                 <span className={`font-mono text-[10px] uppercase ${gpu.supported ? "text-[#d7ff47]" : "text-[#8f9389]"}`}>{gpu.supported ? "Accelerated" : "Software"}</span>
               </div>
               <p className="mt-1 truncate text-xs leading-4 text-[#aeb2a5]" title={gpu.renderer}>{gpu.supported ? gpu.renderer : "No GPU renderer detected; falling back to software rasterization."}</p>
+            </div>
+            <div className={`mt-2 border p-2.5 ${renderPath.id === "main-thread" ? "border-white/10 bg-[#151714]" : "border-[#d7ff47]/40 bg-[#20251a]"}`}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-[#f0f1e9]">Image export pipeline</p>
+                <span className={`font-mono text-[10px] uppercase ${renderPath.id === "main-thread" ? "text-[#8f9389]" : "text-[#d7ff47]"}`}>{renderPath.label}</span>
+              </div>
+              <p className="mt-1 text-xs leading-4 text-[#aeb2a5]">{renderPath.detail}</p>
             </div>
           </div>
 

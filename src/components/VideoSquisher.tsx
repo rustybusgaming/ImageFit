@@ -1,13 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Download, FileVideo, Loader2, RotateCcw, Shrink, Square, X } from "lucide-react";
 import { downloadBlob } from "../lib/download";
 import { downloadZip } from "../lib/zip";
 import { cancelVideoEncoding, compressVideoToTarget, inspectVideo } from "../lib/videoProcessor";
 import type { VideoAudioMode, VideoCodec, VideoCompatibility, VideoEncoderEngine, VideoOutputFormat, VideoResolution } from "../lib/videoProcessor";
-import { compressDesktopVideoToTarget, getAvailableVideoEncoders, isDesktopApp } from "../lib/desktopVideoProcessor";
+import { cancelDesktopVideoEncoding, compressDesktopVideoToTarget, getAvailableVideoEncoders, isDesktopApp } from "../lib/desktopVideoProcessor";
 
 interface Props {
   sourceFiles: File[];
+}
+
+interface QueueEntry {
+  key: string;
+  file: File;
 }
 
 const DISCORD_PRESETS = [
@@ -57,6 +62,7 @@ const ENCODER_PRESETS: Array<{ id: VideoEncoderEngine; label: string; descriptio
   { id: "qsv", label: "Intel Quick Sync", description: "Intel GPU" },
   { id: "amf", label: "AMD AMF", description: "AMD GPU" },
   { id: "videotoolbox", label: "Apple VideoToolbox", description: "Apple hardware" },
+  { id: "vaapi", label: "Linux VAAPI", description: "Intel or AMD on Linux" },
 ];
 
 const HARDWARE_ENCODERS: Record<Exclude<VideoEncoderEngine, "software">, Partial<Record<VideoCodec, string>>> = {
@@ -64,6 +70,7 @@ const HARDWARE_ENCODERS: Record<Exclude<VideoEncoderEngine, "software">, Partial
   qsv: { h264: "h264_qsv", h265: "hevc_qsv", av1: "av1_qsv" },
   amf: { h264: "h264_amf", h265: "hevc_amf", av1: "av1_amf" },
   videotoolbox: { h264: "h264_videotoolbox", h265: "hevc_videotoolbox" },
+  vaapi: { h264: "h264_vaapi", h265: "hevc_vaapi", av1: "av1_vaapi" },
 };
 
 type QueueStatus = "waiting" | "encoding" | "ready" | "failed" | "cancelled";
@@ -75,6 +82,11 @@ function formatBytes(bytes: number): string {
 function getOutputFilename(file: File, presetId: string, format: VideoOutputFormat, codec: VideoCodec): string {
   const sourceName = file.name.replace(/\.[^.]+$/, "") || "video";
   return `${sourceName}-${presetId}-${codec}.${format}`;
+}
+
+function getParentDirectory(outputPath: string): string {
+  const separatorIndex = Math.max(outputPath.lastIndexOf("/"), outputPath.lastIndexOf("\\"));
+  return separatorIndex > 0 ? outputPath.slice(0, separatorIndex) : "the ImageFit output folder";
 }
 
 function getCompressionErrorMessage(error: unknown): string {
@@ -106,6 +118,8 @@ export default function VideoSquisher({ sourceFiles }: Props) {
   const cancellationRef = useRef(false);
   const selectedPreset = DISCORD_PRESETS.find((preset) => preset.id === presetId) ?? DISCORD_PRESETS[0];
   const isDesktop = isDesktopApp();
+  // Two dropped files can share a name, so the queue is tracked by position rather than by filename.
+  const queue = useMemo<QueueEntry[]>(() => sourceFiles.map((file, index) => ({ key: `${index}-${file.name}`, file })), [sourceFiles]);
 
   useEffect(() => {
     if (!isDesktop) return;
@@ -122,12 +136,17 @@ export default function VideoSquisher({ sourceFiles }: Props) {
 
       setIsInspecting(true);
       setCompatibility(null);
-      setQueueStatus(Object.fromEntries(sourceFiles.map((file) => [file.name, "waiting"])));
-      setQueueProgress(Object.fromEntries(sourceFiles.map((file) => [file.name, 0])));
+      setQueueStatus(Object.fromEntries(queue.map((entry) => [entry.key, "waiting"])));
+      setQueueProgress(Object.fromEntries(queue.map((entry) => [entry.key, 0])));
       setQueueErrors({});
 
+      if (queue.length === 0) {
+        setIsInspecting(false);
+        return;
+      }
+
       try {
-        const nextCompatibility = await inspectVideo(sourceFiles[0]);
+        const nextCompatibility = await inspectVideo(queue[0].file);
         if (!cancelled) setCompatibility(nextCompatibility);
       } catch (inspectionError) {
         if (!cancelled) setError(inspectionError instanceof Error ? inspectionError.message : "Could not inspect this video.");
@@ -139,9 +158,9 @@ export default function VideoSquisher({ sourceFiles }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [sourceFiles]);
+  }, [queue]);
 
-  async function squishVideos(filesToEncode = sourceFiles) {
+  async function squishVideos(entriesToEncode = queue) {
     setIsCompressing(true);
     setProgress(0);
     setResult(null);
@@ -151,14 +170,14 @@ export default function VideoSquisher({ sourceFiles }: Props) {
     const nativeOutputs: string[] = [];
 
     try {
-      for (const sourceFile of filesToEncode) {
+      for (const { key, file: sourceFile } of entriesToEncode) {
         if (cancellationRef.current) break;
 
-        setQueueStatus((current) => ({ ...current, [sourceFile.name]: "encoding" }));
-        setQueueProgress((current) => ({ ...current, [sourceFile.name]: 0 }));
+        setQueueStatus((current) => ({ ...current, [key]: "encoding" }));
+        setQueueProgress((current) => ({ ...current, [key]: 0 }));
         setQueueErrors((current) => {
           const next = { ...current };
-          delete next[sourceFile.name];
+          delete next[key];
           return next;
         });
         try {
@@ -166,33 +185,33 @@ export default function VideoSquisher({ sourceFiles }: Props) {
           if (isDesktop) {
             const output = await compressDesktopVideoToTarget(sourceFile, settings, selectedPreset.id, (nextProgress) => {
               setProgress(nextProgress);
-              setQueueProgress((current) => ({ ...current, [sourceFile.name]: nextProgress }));
+              setQueueProgress((current) => ({ ...current, [key]: nextProgress }));
             });
             nativeOutputs.push(output.outputPath);
           } else {
             const output = await compressVideoToTarget(sourceFile, settings, (nextProgress) => {
                 setProgress(nextProgress);
-                setQueueProgress((current) => ({ ...current, [sourceFile.name]: nextProgress }));
+                setQueueProgress((current) => ({ ...current, [key]: nextProgress }));
             });
             files.push({ blob: output, filename: getOutputFilename(sourceFile, selectedPreset.id, format, codec) });
           }
           if (cancellationRef.current) break;
-          setQueueStatus((current) => ({ ...current, [sourceFile.name]: "ready" }));
-          setQueueProgress((current) => ({ ...current, [sourceFile.name]: 1 }));
+          setQueueStatus((current) => ({ ...current, [key]: "ready" }));
+          setQueueProgress((current) => ({ ...current, [key]: 1 }));
         } catch (compressionError) {
           if (cancellationRef.current) break;
 
           const message = getCompressionErrorMessage(compressionError);
-          setQueueStatus((current) => ({ ...current, [sourceFile.name]: "failed" }));
-          setQueueErrors((current) => ({ ...current, [sourceFile.name]: message }));
+          setQueueStatus((current) => ({ ...current, [key]: "failed" }));
+          setQueueErrors((current) => ({ ...current, [key]: message }));
         }
       }
 
       if (cancellationRef.current) {
-        setQueueStatus((current) => Object.fromEntries(Object.entries(current).map(([name, status]) => [name, status === "encoding" || status === "waiting" ? "cancelled" : status])));
+        setQueueStatus((current) => Object.fromEntries(Object.entries(current).map(([key, status]) => [key, status === "encoding" || status === "waiting" ? "cancelled" : status])));
         setResult("Encoding cancelled. Ready files remain available from completed runs.");
       } else if (isDesktop && nativeOutputs.length > 0) {
-        setResult(`${nativeOutputs.length} file${nativeOutputs.length === 1 ? "" : "s"} saved to Downloads\\ImageFit.`);
+        setResult(`${nativeOutputs.length} file${nativeOutputs.length === 1 ? "" : "s"} saved to ${getParentDirectory(nativeOutputs[0])}.`);
       } else if (files.length === 1) {
         await downloadBlob(files[0].blob, files[0].filename);
         setResult(`1 ${format.toUpperCase()} file ready for Discord.`);
@@ -211,7 +230,11 @@ export default function VideoSquisher({ sourceFiles }: Props) {
 
   function cancelEncoding() {
     cancellationRef.current = true;
-    cancelVideoEncoding();
+    if (isDesktop) {
+      cancelDesktopVideoEncoding();
+    } else {
+      cancelVideoEncoding();
+    }
   }
 
   function clearFailures() {
@@ -234,7 +257,7 @@ export default function VideoSquisher({ sourceFiles }: Props) {
 
       {compatibility ? (
         <div className="mt-4 border border-white/10 bg-[#211814] p-3 text-sm text-[#e8bbae]">
-          <p className="font-medium text-[#fff5ee]">Source: {compatibility.width}×{compatibility.height} · {Math.round(compatibility.duration)} sec</p>
+          <p className="font-medium text-[#fff5ee]">Source: {compatibility.width}×{compatibility.height}{Number.isFinite(compatibility.duration) ? ` · ${Math.round(compatibility.duration)} sec` : ""}</p>
           {compatibility.warnings.length > 0 ? (
             <ul className="mt-2 space-y-1 text-xs leading-4">
               {compatibility.warnings.map((warning) => <li key={warning} className="flex gap-2"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#ff9a7b]" />{warning}</li>)}
@@ -415,18 +438,18 @@ export default function VideoSquisher({ sourceFiles }: Props) {
 
       {result ? <p className="mt-3 text-sm font-medium text-[#d7ff47]">{result}</p> : null}
       {error ? <p className="mt-3 text-sm text-[#ffb39d]">{error}</p> : null}
-      {sourceFiles.length > 0 ? (
+      {queue.length > 0 ? (
         <ul className="mt-4 space-y-1 border-t border-[#ff7448]/20 pt-3 text-xs text-[#e8bbae]">
-          {sourceFiles.map((file) => {
-            const status = queueStatus[file.name] ?? "waiting";
-            const fileProgress = queueProgress[file.name] ?? 0;
+          {queue.map((entry) => {
+            const status = queueStatus[entry.key] ?? "waiting";
+            const fileProgress = queueProgress[entry.key] ?? 0;
 
             return (
-              <li key={file.name} className="border border-[#ff7448]/20 bg-[#211814] p-2">
-                <div className="flex items-center justify-between gap-3"><span className="truncate">{file.name}</span><span className="shrink-0 uppercase">{status === "encoding" ? `${Math.round(fileProgress * 100)}%` : status}</span></div>
+              <li key={entry.key} className="border border-[#ff7448]/20 bg-[#211814] p-2">
+                <div className="flex items-center justify-between gap-3"><span className="truncate">{entry.file.name}</span><span className="shrink-0 uppercase">{status === "encoding" ? `${Math.round(fileProgress * 100)}%` : status}</span></div>
                 <div className="mt-2 h-1.5 overflow-hidden bg-[#3b251d]"><div className="h-full bg-[#ff7448] transition-[width]" style={{ width: `${fileProgress * 100}%` }} /></div>
-                {queueErrors[file.name] ? <p className="mt-2 text-[#ffb39d]">{queueErrors[file.name]}</p> : null}
-                {status === "failed" && !isCompressing ? <button type="button" onClick={() => void squishVideos([file])} className="mt-2 inline-flex items-center gap-1 font-semibold text-[#d7ff47] hover:text-[#e4ff80]"><RotateCcw className="h-3.5 w-3.5" />Retry this file</button> : null}
+                {queueErrors[entry.key] ? <p className="mt-2 text-[#ffb39d]">{queueErrors[entry.key]}</p> : null}
+                {status === "failed" && !isCompressing ? <button type="button" onClick={() => void squishVideos([entry])} className="mt-2 inline-flex items-center gap-1 font-semibold text-[#d7ff47] hover:text-[#e4ff80]"><RotateCcw className="h-3.5 w-3.5" />Retry this file</button> : null}
               </li>
             );
           })}

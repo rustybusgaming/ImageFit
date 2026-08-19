@@ -18,6 +18,7 @@ const MEDIA_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".sv
 let mainWindow = null;
 let pendingOpenPaths = [];
 let updateReady = false;
+const activeEncodingJobs = new Map();
 
 function getSettingsPath() {
   return path.join(app.getPath("userData"), "settings.json");
@@ -132,7 +133,21 @@ const HARDWARE_ENCODERS = {
   qsv: { h264: "h264_qsv", h265: "hevc_qsv", av1: "av1_qsv" },
   amf: { h264: "h264_amf", h265: "hevc_amf", av1: "av1_amf" },
   videotoolbox: { h264: "h264_videotoolbox", h265: "hevc_videotoolbox" },
+  vaapi: { h264: "h264_vaapi", h265: "hevc_vaapi", av1: "av1_vaapi" },
 };
+
+// VAAPI encodes through a DRM render node. Without one the encoders may still be listed by
+// FFmpeg but cannot initialise, so availability is gated on a device actually being present.
+function getVaapiDevice() {
+  if (process.platform !== "linux") return null;
+
+  try {
+    const nodes = fs.readdirSync("/dev/dri").filter((entry) => entry.startsWith("renderD")).sort();
+    return nodes.length > 0 ? path.join("/dev/dri", nodes[0]) : null;
+  } catch {
+    return null;
+  }
+}
 
 function getCodecArgs(codec, engine) {
   if (engine === "software") {
@@ -141,9 +156,35 @@ function getCodecArgs(codec, engine) {
     return args;
   }
 
+  if (engine === "vaapi" && !getVaapiDevice()) {
+    throw new Error("No VAAPI render device was found on this computer.");
+  }
+
   const encoder = HARDWARE_ENCODERS[engine]?.[codec];
   if (!encoder) throw new Error("The selected hardware engine does not support this codec.");
   return ["-c:v", encoder, ...(engine === "nvenc" ? ["-preset", "p4"] : [])];
+}
+
+// The comma inside min() has to be escaped or FFmpeg reads it as a filter separator.
+function getVideoFilter(frameRate, height, format, engine) {
+  const scale = `fps=${frameRate},scale=-2:min(${height}\\,ih)`;
+
+  if (format === "gif") {
+    return `${scale},split[palettesource][frames];[palettesource]palettegen=stats_mode=diff[palette];[frames][palette]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`;
+  }
+
+  // VAAPI encoders read GPU surfaces, so scaled frames are converted and uploaded to the device.
+  if (engine === "vaapi") return `${scale},format=nv12,hwupload`;
+
+  return scale;
+}
+
+function removeFile(filePath) {
+  try {
+    fs.rmSync(filePath, { force: true });
+  } catch {
+    // A leftover partial file is not worth failing the encode over.
+  }
 }
 
 function getAudioArgs(format, audio, audioBitrate) {
@@ -162,8 +203,10 @@ function getAvailableVideoEncoders() {
 
   const result = spawnSync(ffmpegPath, ["-hide_banner", "-encoders"], { encoding: "utf8", windowsHide: true });
   const output = `${result.stdout}\n${result.stderr}`;
-  return Object.values(HARDWARE_ENCODERS)
-    .flatMap((encoders) => Object.values(encoders))
+  const hasVaapiDevice = getVaapiDevice() !== null;
+  return Object.entries(HARDWARE_ENCODERS)
+    .filter(([engine]) => engine !== "vaapi" || hasVaapiDevice)
+    .flatMap(([, encoders]) => Object.values(encoders))
     .filter((encoder, index, encoders) => encoders.indexOf(encoder) === index && output.includes(encoder));
 }
 
@@ -187,6 +230,9 @@ function createWindow() {
       pendingOpenPaths = [];
     }
   });
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+  });
 }
 
 app.whenReady().then(() => {
@@ -209,7 +255,7 @@ app.whenReady().then(() => {
     const totalBitrate = Math.floor((usableBytes * 8) / payload.duration);
     const audioBitrate = payload.audio === "keep" ? Math.min(96_000, Math.floor(totalBitrate * 0.2)) : payload.audio === "reduced" ? 48_000 : 0;
     const videoBitrate = Math.max(100_000, totalBitrate - audioBitrate);
-    const filter = `fps=${payload.frameRate},scale=-2:min(${payload.height},ih)`;
+    const filter = getVideoFilter(payload.frameRate, payload.height, payload.format, payload.encoder);
     const encodingArgs = payload.format === "gif"
       ? ["-loop", "0"]
       : [
@@ -220,24 +266,64 @@ app.whenReady().then(() => {
           ...getAudioArgs(payload.format, payload.audio, audioBitrate),
           ...(payload.format === "mp4" ? ["-movflags", "+faststart"] : []),
         ];
-    const args = ["-y", "-i", payload.inputPath, "-vf", filter, ...encodingArgs, outputPath];
+    const vaapiDevice = payload.encoder === "vaapi" && payload.format !== "gif" ? getVaapiDevice() : null;
+    const args = [
+      "-y",
+      // Decode on the GPU where a supported device exists. FFmpeg silently falls back to
+      // software when it cannot initialise, and outputs software frames either way, so the
+      // filter chain below is unaffected.
+      ...(vaapiDevice ? ["-vaapi_device", vaapiDevice] : ["-hwaccel", "auto"]),
+      "-i", payload.inputPath,
+      "-vf", filter,
+      ...encodingArgs,
+      outputPath,
+    ];
 
-    await new Promise((resolve, reject) => {
-      const process = spawn(ffmpegPath, args, { windowsHide: true });
-      let diagnostic = "";
-      process.stderr.on("data", (chunk) => {
-        const message = chunk.toString();
-        diagnostic = `${diagnostic}${message}`.slice(-6000);
-        const match = /time=(\d{2}:\d{2}:\d{2}\.\d+)/.exec(message);
-        if (match) event.sender.send("desktop:video-progress", { jobId: payload.jobId, progress: Math.min(1, parseTimestamp(match[1]) / payload.duration) });
+    try {
+      await new Promise((resolve, reject) => {
+        const ffmpegProcess = spawn(ffmpegPath, args, { windowsHide: true });
+        activeEncodingJobs.set(payload.jobId, ffmpegProcess);
+        let diagnostic = "";
+        ffmpegProcess.stderr.on("data", (chunk) => {
+          const message = chunk.toString();
+          diagnostic = `${diagnostic}${message}`.slice(-6000);
+          const match = /time=(\d{2}:\d{2}:\d{2}\.\d+)/.exec(message);
+          if (match && !event.sender.isDestroyed()) {
+            event.sender.send("desktop:video-progress", { jobId: payload.jobId, progress: Math.min(1, parseTimestamp(match[1]) / payload.duration) });
+          }
+        });
+        ffmpegProcess.on("error", (error) => reject(error));
+        ffmpegProcess.on("close", (code, signal) => {
+          if (signal || ffmpegProcess.killed) {
+            reject(new Error("Encoding cancelled."));
+          } else if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(diagnostic || `FFmpeg exited with code ${code}.`));
+          }
+        });
       });
-      process.on("error", (error) => reject(error));
-      process.on("close", (code) => code === 0 ? resolve() : reject(new Error(diagnostic || `FFmpeg exited with code ${code}.`)));
-    });
+    } catch (error) {
+      removeFile(outputPath);
+      throw error;
+    } finally {
+      activeEncodingJobs.delete(payload.jobId);
+    }
 
     const size = fs.statSync(outputPath).size;
-    if (size > payload.maxBytes) throw new Error("This video could not be reduced to the selected file-size limit.");
+    if (size > payload.maxBytes) {
+      removeFile(outputPath);
+      throw new Error("This video could not be reduced to the selected file-size limit.");
+    }
     return { outputPath, size };
+  });
+
+  ipcMain.handle("desktop:video-cancel", (_event, jobIds) => {
+    const targets = Array.isArray(jobIds) && jobIds.length > 0 ? jobIds : [...activeEncodingJobs.keys()];
+    for (const jobId of targets) {
+      activeEncodingJobs.get(jobId)?.kill();
+    }
+    return true;
   });
 
   ipcMain.handle("desktop:available-video-encoders", () => getAvailableVideoEncoders());
