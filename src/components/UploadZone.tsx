@@ -2,25 +2,36 @@ import { useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { FileImage, FileVideo, UploadCloud } from "lucide-react";
 import { isDesktopApp } from "../lib/desktopVideoProcessor";
+import { classifyMedia } from "../lib/imageFormats";
 
 interface UploadZoneProps {
   onUpload: (files: File[]) => void;
+  /** Set while an upload is being converted into a format the browser can display. */
+  isBusy?: boolean;
+  /** Reported by the loader when a file could not be opened. */
+  error?: string | null;
 }
 
-export default function UploadZone({ onUpload }: UploadZoneProps) {
+export default function UploadZone({ onUpload, isBusy = false, error: externalError = null }: UploadZoneProps) {
   const [error, setError] = useState<string | null>(null);
   const supportsLargeVideoFiles = isDesktopApp();
 
   function handleFiles(files: File[]) {
-    const invalidFile = files.find((file) => !file.type.startsWith("image/") && !file.type.startsWith("video/"));
+    const invalidFile = files.find((file) => classifyMedia(file) === "unsupported");
     if (invalidFile) {
       setError("Please choose a valid image or video file.");
       return;
     }
 
-    const oversizedFile = files.find((file) => file.size > (file.type.startsWith("video/") && supportsLargeVideoFiles ? Number.POSITIVE_INFINITY : file.type.startsWith("video/") ? 3 * 1024 * 1024 * 1024 : 50 * 1024 * 1024));
+    const limitFor = (file: File) => {
+      if (classifyMedia(file) !== "video") return 50 * 1024 * 1024;
+      return supportsLargeVideoFiles ? Number.POSITIVE_INFINITY : 3 * 1024 * 1024 * 1024;
+    };
+
+    const oversizedFile = files.find((file) => file.size > limitFor(file));
     if (oversizedFile) {
-      setError(`This ${oversizedFile.type.startsWith("video/") ? "video" : "image"} is larger than ${oversizedFile.type.startsWith("video/") ? "3 GB" : "50 MB"}.`);
+      const isVideo = classifyMedia(oversizedFile) === "video";
+      setError(`This ${isVideo ? "video" : "image"} is larger than ${isVideo ? "3 GB" : "50 MB"}.`);
       return;
     }
 
@@ -34,7 +45,7 @@ export default function UploadZone({ onUpload }: UploadZoneProps) {
       // them, so the extension list is what actually admits them.
       "image/*": [
         ".png", ".apng", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif",
-        ".bmp", ".ico", ".tif", ".tiff", ".psd", ".qoi", ".tga", ".targa", ".dds", ".jp2", ".j2k",
+        ".bmp", ".ico", ".tif", ".tiff", ".psd", ".qoi", ".tga", ".targa", ".dds", ".jp2", ".j2k", ".heic", ".heif",
       ],
       "video/*": [".mp4", ".webm", ".mov", ".m4v", ".avi", ".mkv"],
     },
@@ -72,14 +83,14 @@ export default function UploadZone({ onUpload }: UploadZoneProps) {
         </div>
 
         <p className="text-2xl font-semibold tracking-[0.02em] text-[#f6f7f0]">
-          {isDragActive ? "Drop your media here" : "Drop images or videos here"}
+          {isBusy ? "Preparing your file..." : isDragActive ? "Drop your media here" : "Drop images or videos here"}
         </p>
         <p className="mt-2 text-sm text-[#b7baaf]">or click to browse from your device</p>
         <p className="mt-5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9ea296]">
-          Images: PNG · APNG · JPG · WEBP · GIF · SVG · AVIF · BMP · TIFF · PSD · TGA · QOI up to 50 MB &nbsp;•&nbsp; Videos: MP4 · WEBM · MOV · MKV · AVI {supportsLargeVideoFiles ? "any local size" : "up to 3 GB"}
+          Images: PNG · APNG · JPG · WEBP · GIF · SVG · AVIF · BMP · TIFF · PSD · TGA · QOI · HEIC up to 50 MB &nbsp;•&nbsp; Videos: MP4 · WEBM · MOV · MKV · AVI {supportsLargeVideoFiles ? "any local size" : "up to 3 GB"}
         </p>
 
-        {error ? <p className="mt-4 text-sm text-[#ff9a7b]">{error}</p> : null}
+        {error ?? externalError ? <p className="mt-4 text-sm text-[#ff9a7b]">{error ?? externalError}</p> : null}
       </div>
       <div className="grid border-x border-b border-white/10 bg-[#121310] sm:grid-cols-2">
         <div className="flex items-center gap-3 border-b border-white/10 p-4 text-sm text-[#b7baaf] sm:border-b-0 sm:border-r">

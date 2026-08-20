@@ -45,6 +45,38 @@ export interface ImageFormatInfo {
 
 const HEADER_BYTES = 4096;
 
+/**
+ * Media classification cannot rely on `File.type`: the browser derives it from the operating
+ * system's extension mapping, and the uncommon formats ImageFit accepts usually come through
+ * as an empty string or `application/octet-stream`. The extension is the reliable signal.
+ */
+const IMAGE_EXTENSIONS = new Set([
+  "png", "apng", "jpg", "jpeg", "jfif", "gif", "webp", "svg", "avif", "heic", "heif",
+  "bmp", "ico", "tif", "tiff", "psd", "qoi", "tga", "targa", "dds", "jp2", "j2k", "jpf", "jpx",
+]);
+
+const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "mov", "m4v", "avi", "mkv", "ogv", "m2ts", "mts", "wmv", "flv"]);
+
+export type MediaKind = "image" | "video" | "unsupported";
+
+function getExtension(name: string): string {
+  const dot = name.lastIndexOf(".");
+  return dot === -1 ? "" : name.slice(dot + 1).toLowerCase();
+}
+
+export function classifyMedia(file: File): MediaKind {
+  const extension = getExtension(file.name);
+
+  if (VIDEO_EXTENSIONS.has(extension)) return "video";
+  if (IMAGE_EXTENSIONS.has(extension)) return "image";
+
+  // Fall back to the declared type for files with no useful extension.
+  if (file.type.startsWith("video/")) return "video";
+  if (file.type.startsWith("image/")) return "image";
+
+  return "unsupported";
+}
+
 function startsWith(bytes: Uint8Array, signature: number[], offset = 0): boolean {
   return signature.every((value, index) => bytes[offset + index] === value);
 }

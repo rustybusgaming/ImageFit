@@ -9,10 +9,11 @@ import ExportPanel from "./components/ExportPanel";
 import ImageSquisher from "./components/ImageSquisher";
 import VideoSquisher from "./components/VideoSquisher";
 import { useImage } from "./hooks/useImage";
+import { classifyMedia } from "./lib/imageFormats";
 import type { ImageTransform } from "./lib/imageProcessor";
 
 export default function App() {
-  const { image, imageFile, isVideo, loadImage, clearImage } = useImage();
+  const { image, imageFile, isVideo, isPreparing, loadError, loadImage, clearImage } = useImage();
   const isDesktop = typeof window !== "undefined" && Boolean(window.imageFitDesktop);
   const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformPreset[]>([]);
   const [transform, setTransform] = useState<ImageTransform>();
@@ -53,15 +54,15 @@ export default function App() {
   }
 
   function handleUpload(files: File[]) {
-    const images = files.filter((file) => file.type.startsWith("image/"));
-    const videos = files.filter((file) => file.type.startsWith("video/"));
+    const images = files.filter((file) => classifyMedia(file) === "image");
+    const videos = files.filter((file) => classifyMedia(file) === "video");
 
     if (images.length > 0) {
       setImageQueue(images);
       setActiveImageIndex(0);
       setVideoQueue([]);
       setTransform(undefined);
-      loadImage(images[0]);
+      void loadImage(images[0]);
       return;
     }
 
@@ -69,7 +70,7 @@ export default function App() {
       setImageQueue([]);
       setActiveImageIndex(0);
       setVideoQueue(videos);
-      loadImage(videos[0]);
+      void loadImage(videos[0]);
     }
   }
 
@@ -94,7 +95,7 @@ export default function App() {
 
     setActiveImageIndex(index);
     setTransform(undefined);
-    loadImage(nextImage);
+    void loadImage(nextImage);
   }
 
   function removeImage(index: number) {
@@ -113,7 +114,7 @@ export default function App() {
       const nextIndex = Math.min(index, nextQueue.length - 1);
       setActiveImageIndex(nextIndex);
       setTransform(undefined);
-      loadImage(nextQueue[nextIndex]);
+      void loadImage(nextQueue[nextIndex]);
     } else if (index < activeImageIndex) {
       setActiveImageIndex(activeImageIndex - 1);
     }
@@ -169,7 +170,7 @@ export default function App() {
         </header>
 
         {!image ? (
-          <UploadZone onUpload={handleUpload} />
+          <UploadZone onUpload={handleUpload} isBusy={isPreparing} error={loadError} />
         ) : isVideo && imageFile ? (
           <div className="grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
             <section className="border border-white/10 bg-[#151714] p-5 shadow-[0_16px_40px_-28px_rgba(0,0,0,0.9)]">

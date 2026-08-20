@@ -6,7 +6,7 @@
 
   ## Features
 
-  - Upload JPG, PNG, APNG, WebP, GIF, SVG, AVIF, BMP, TIFF, PSD, Targa, QOI, or JPEG 2000 images up to 50 MB, or MP4, WebM, MOV, M4V, AVI, and MKV videos up to 3 GB in the browser (no size limit in the desktop app).
+  - Upload JPG, PNG, APNG, WebP, GIF, SVG, AVIF, HEIC, BMP, TIFF, PSD, Targa, QOI, or JPEG 2000 images up to 50 MB, or MP4, WebM, MOV, M4V, AVI, and MKV videos up to 3 GB in the browser (no size limit in the desktop app).
   - Crop, zoom, and rotate the source image.
   - Export presets for Instagram, Discord, GitHub, LinkedIn, Open Collective, YouTube, Roblox, Twitch, X, and TikTok.
   - Choose JPEG, PNG, or WebP output with adjustable quality.
@@ -15,6 +15,7 @@
   - Download one export directly or package several exports into a ZIP file.
   - Compress the original image with size and quality presets, searching for the best quality that fits the limit.
   - Keep animation when compressing animated GIFs and APNGs, which are re-encoded to animated WebP.
+  - Edit and export formats browsers cannot display, such as HEIC, TIFF, PSD, Targa, and QOI, which are converted on load.
   - Encode with hardware acceleration automatically on desktop when the graphics driver supports it.
   - Use Discord 5 MB and 10 MB image presets that encode to the selected maximum size.
   - Transcode videos locally to MP4, WebM, MOV, AVI, OGV, or GIF files sized for Discord's 5 MB or 10 MB upload limits.

@@ -4,7 +4,7 @@ import { compressImage, compressImageToTarget } from "../lib/imageProcessor";
 import type { CompressionSettings, TargetCompressionSettings } from "../lib/imageProcessor";
 import { downloadBlob } from "../lib/download";
 import { readImageFormat } from "../lib/imageFormats";
-import { compressAnimatedImage, convertToBrowserImage } from "../lib/animatedProcessor";
+import { compressAnimatedImage } from "../lib/animatedProcessor";
 
 interface Props {
   image: string;
@@ -50,8 +50,6 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
     setError(null);
     setResult(null);
 
-    let convertedUrl: string | null = null;
-
     try {
       const settings = selectedPreset.settings;
       const maxBytes = isTargetCompression(settings) ? settings.maxBytes : undefined;
@@ -81,18 +79,10 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
         return;
       }
 
-      // Formats no browser can decode are converted to PNG first, then compressed as usual.
-      let source = image;
-      if (sourceFile && format && !format.isBrowserDecodable) {
-        if (!format.isFFmpegDecodable) throw new Error("ImageFit cannot read this image format.");
-
-        convertedUrl = URL.createObjectURL(await convertToBrowserImage(sourceFile));
-        source = convertedUrl;
-      }
-
+      // Anything not natively renderable was already converted when the file was loaded.
       const blob = isTargetCompression(settings)
-        ? await compressImageToTarget(source, settings)
-        : await compressImage(source, settings);
+        ? await compressImageToTarget(image, settings)
+        : await compressImage(image, settings);
       const sourceSize = sourceFile?.size;
       const saved = sourceSize ? Math.round((1 - blob.size / sourceSize) * 100) : null;
       setResult(saved !== null && saved > 0 ? `${formatBytes(blob.size)} · ${saved}% smaller` : `${formatBytes(blob.size)} ready`);
@@ -100,7 +90,6 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
     } catch (compressionError) {
       setError(compressionError instanceof Error ? compressionError.message : "Could not compress this image.");
     } finally {
-      if (convertedUrl) URL.revokeObjectURL(convertedUrl);
       setIsCompressing(false);
     }
   }

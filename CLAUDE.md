@@ -147,6 +147,22 @@ Two details worth not "fixing":
 `gpuImageProcessor.ts` reports which of these paths is live (`getRenderPath()`) for the desktop
 panel; it decides nothing itself.
 
+### Getting an upload into a displayable state
+
+`classifyMedia` decides image-vs-video from the **extension**, not `File.type`: browsers derive
+the MIME from the OS mapping and hand back an empty string or `application/octet-stream` for
+most of the uncommon formats, so MIME-based checks silently rejected them at the drop zone.
+
+`useImage.loadImage` then runs `prepareImage` (`imageSource.ts`) before anything renders, so the
+object URL every consumer receives is always something a browser can draw. Conversion belongs
+there rather than in each panel — the editor, the export preview and the platform exports all
+read the same URL, and only the squisher would otherwise have worked. `loadImage` is async and
+guarded by a token so a slow conversion cannot overwrite a newer selection.
+
+HEIC goes through `heicDecoder.ts` (libheif-js), which is imported lazily because it carries
+~1.4 MB of embedded wasm; Vite emits it as its own chunk. Everything else FFmpeg can read goes
+through `convertToBrowserImage`.
+
 ### Animated and uncommon image formats
 
 `imageFormats.ts` decides what a file actually is from its bytes — extensions and MIME types

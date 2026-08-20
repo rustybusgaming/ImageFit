@@ -96,13 +96,33 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # CSC_LINK must be left unset rather than set to an empty string: electron-builder reads
+      # an empty value as a certificate *path*, resolves it against the project directory and
+      # fails with "<projectDir> not a file". The signing variables are therefore exported from
+      # the shell only when a certificate secret actually exists.
       - name: Build desktop app
-        run: ${{ matrix.command }}
+        shell: bash
+        run: |
+          case "${{ matrix.name }}" in
+            Windows) certificate="$WINDOWS_CERTIFICATE"; password="$WINDOWS_CERTIFICATE_PASSWORD" ;;
+            macOS)   certificate="$APPLE_CERTIFICATE";   password="$APPLE_CERTIFICATE_PASSWORD" ;;
+            *)       certificate=""; password="" ;;
+          esac
+
+          if [ -n "$certificate" ]; then
+            export CSC_LINK="$certificate"
+            export CSC_KEY_PASSWORD="$password"
+          else
+            echo "No code-signing certificate for ${{ matrix.name }}; building unsigned."
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+
+          ${{ matrix.command }}
         env:
-          CSC_LINK: ${{ matrix.name == 'Windows' && secrets.WINDOWS_CERTIFICATE_BASE64 || matrix.name == 'macOS' && secrets.APPLE_CERTIFICATE_BASE64 || '' }}
-          CSC_KEY_PASSWORD: ${{ matrix.name == 'Windows' && secrets.WINDOWS_CERTIFICATE_PASSWORD || matrix.name == 'macOS' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
-          # Without a certificate electron-builder would otherwise search the keychain and fail the job.
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.name == 'macOS' && secrets.APPLE_CERTIFICATE_BASE64 != '' }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
 
       - name: Upload desktop artifact
         uses: actions/upload-artifact@v4
