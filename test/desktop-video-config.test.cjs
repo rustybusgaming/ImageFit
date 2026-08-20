@@ -8,6 +8,7 @@ const {
   getVaapiDevice,
   isCodecCompatible,
   isEngineSupportedHere,
+  pickFastestEngine,
   planVideoBitrate,
   retargetVideoBitrate,
 } = require("../desktop/video-config.cjs");
@@ -156,4 +157,32 @@ test("retargeting steps down from a measured overshoot and stops at the floor", 
   assert.equal(retargetVideoBitrate(100_000, 99 * MB, 10 * MB), null);
   // An output already under the cap would not be retargeted upward.
   assert.equal(retargetVideoBitrate(100_000, 1 * MB, 10 * MB), null);
+});
+
+const HARDWARE_ENCODERS = {
+  nvenc: { h264: "h264_nvenc", h265: "hevc_nvenc", av1: "av1_nvenc" },
+  qsv: { h264: "h264_qsv", h265: "hevc_qsv", av1: "av1_qsv" },
+  amf: { h264: "h264_amf", h265: "hevc_amf", av1: "av1_amf" },
+  videotoolbox: { h264: "h264_videotoolbox", h265: "hevc_videotoolbox" },
+  vaapi: { h264: "h264_vaapi", h265: "hevc_vaapi", av1: "av1_vaapi" },
+  mf: { h264: "h264_mf", h265: "hevc_mf" },
+};
+const pick = (codec, available) => pickFastestEngine(codec, available, HARDWARE_ENCODERS);
+
+test("the fastest available engine is chosen automatically", () => {
+  // Vendor engines win over the OS-level ones when both are present.
+  assert.equal(pick("h264", ["h264_mf", "h264_qsv", "h264_nvenc"]), "nvenc");
+  assert.equal(pick("h264", ["h264_mf", "h264_qsv"]), "qsv");
+  assert.equal(pick("h264", ["h264_vaapi", "h264_mf"]), "vaapi");
+  assert.equal(pick("h264", ["h264_mf"]), "mf");
+});
+
+test("engine selection falls back to software rather than picking something unusable", () => {
+  assert.equal(pick("h264", []), "software");
+  // vp9/theora have no hardware encoder in the map at all.
+  assert.equal(pick("vp9", ["h264_nvenc", "hevc_nvenc"]), "software");
+  assert.equal(pick("theora", ["h264_nvenc"]), "software");
+  // An engine present for a different codec must not be selected for this one.
+  assert.equal(pick("av1", ["h264_videotoolbox", "hevc_videotoolbox"]), "software");
+  assert.equal(pick("av1", ["av1_qsv"]), "qsv");
 });

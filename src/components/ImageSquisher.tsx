@@ -3,6 +3,8 @@ import { Download, Laugh, Loader2, Shrink } from "lucide-react";
 import { compressImage, compressImageToTarget } from "../lib/imageProcessor";
 import type { CompressionSettings, TargetCompressionSettings } from "../lib/imageProcessor";
 import { downloadBlob } from "../lib/download";
+import { readImageFormat } from "../lib/imageFormats";
+import { compressAnimatedImage, convertToBrowserImage } from "../lib/animatedProcessor";
 
 interface Props {
   image: string;
@@ -48,17 +50,57 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
     setError(null);
     setResult(null);
 
+    let convertedUrl: string | null = null;
+
     try {
-      const blob = isTargetCompression(selectedPreset.settings)
-        ? await compressImageToTarget(image, selectedPreset.settings)
-        : await compressImage(image, selectedPreset.settings);
+      const settings = selectedPreset.settings;
+      const maxBytes = isTargetCompression(settings) ? settings.maxBytes : undefined;
+      const format = sourceFile ? await readImageFormat(sourceFile) : null;
+
+      // Animated sources go through FFmpeg: the canvas pipeline would flatten them to one frame.
+      if (sourceFile && format?.isAnimated) {
+        if (!format.isFFmpegDecodable) {
+          throw new Error(
+            "Animated WebP files cannot be re-encoded without losing their animation, so ImageFit leaves them alone."
+          );
+        }
+
+        const animated = await compressAnimatedImage(sourceFile, {
+          quality: settings.quality,
+          scale: settings.scale,
+          effect: settings.effect,
+          maxBytes,
+        });
+        const savedShare = Math.round((1 - animated.blob.size / sourceFile.size) * 100);
+        setResult(
+          savedShare > 0
+            ? `${formatBytes(animated.blob.size)} · ${savedShare}% smaller · animation kept`
+            : `${formatBytes(animated.blob.size)} ready · animation kept`
+        );
+        await downloadBlob(animated.blob, `imagefit-${selectedPreset.id}.${animated.extension}`);
+        return;
+      }
+
+      // Formats no browser can decode are converted to PNG first, then compressed as usual.
+      let source = image;
+      if (sourceFile && format && !format.isBrowserDecodable) {
+        if (!format.isFFmpegDecodable) throw new Error("ImageFit cannot read this image format.");
+
+        convertedUrl = URL.createObjectURL(await convertToBrowserImage(sourceFile));
+        source = convertedUrl;
+      }
+
+      const blob = isTargetCompression(settings)
+        ? await compressImageToTarget(source, settings)
+        : await compressImage(source, settings);
       const sourceSize = sourceFile?.size;
       const saved = sourceSize ? Math.round((1 - blob.size / sourceSize) * 100) : null;
       setResult(saved !== null && saved > 0 ? `${formatBytes(blob.size)} · ${saved}% smaller` : `${formatBytes(blob.size)} ready`);
-      await downloadBlob(blob, `imagefit-${selectedPreset.id}.${selectedPreset.settings.format}`);
+      await downloadBlob(blob, `imagefit-${selectedPreset.id}.${settings.format}`);
     } catch (compressionError) {
       setError(compressionError instanceof Error ? compressionError.message : "Could not compress this image.");
     } finally {
+      if (convertedUrl) URL.revokeObjectURL(convertedUrl);
       setIsCompressing(false);
     }
   }

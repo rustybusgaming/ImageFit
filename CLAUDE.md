@@ -74,6 +74,11 @@ They are not identical, and the differences matter:
   codecs: `mjpeg`, `prores`, and `dnxhd` set `-q:v`/`-profile:v`, so they ignore `-b:v`
   entirely and simply stop at the floor.
 
+The engine is chosen automatically by `pickFastestEngine` (vendor engines, then the OS-level
+ones, then software) unless someone picks one in the UI; `VideoSquisher` derives it during
+render from `engineChoice ?? pickFastestEngine(...)` rather than storing it, and changing the
+codec or file type clears the manual choice.
+
 Hardware encoding is desktop-only. Engine→encoder names live in `HARDWARE_ENCODERS`
 (`desktop/main.cjs`), but whether an engine can actually run lives in `ENGINE_REQUIREMENTS`
 (`desktop/video-config.cjs`), because FFmpeg lists an encoder whenever the build was compiled
@@ -108,7 +113,10 @@ callback.
 
 `src/lib/imageProcessor.ts` is the public API (`resizeImage` for `ExportPanel`'s platform
 presets, `compressImage` / `compressImageToTarget` for `ImageSquisher`, which works on the
-original upload and deliberately ignores the editor crop and export settings). It owns no
+original upload and deliberately ignores the editor crop and export settings).
+`compressImageToTarget` searches for the *highest* quality that fits the byte budget rather
+than returning the first setting that happens to fit, and only shrinks the dimensions once no
+quality at the current scale can get under the cap. It owns no
 drawing code — it decides where the work runs:
 
 1. `renderPool.ts` dispatches to a pool of `imageWorker.ts` workers (OffscreenCanvas), so a
@@ -138,6 +146,24 @@ Two details worth not "fixing":
 
 `gpuImageProcessor.ts` reports which of these paths is live (`getRenderPath()`) for the desktop
 panel; it decides nothing itself.
+
+### Animated and uncommon image formats
+
+`imageFormats.ts` decides what a file actually is from its bytes — extensions and MIME types
+cannot tell an animated GIF from a static one, and several accepted formats arrive as
+`application/octet-stream`. `ImageSquisher` then routes on that:
+
+- **Animated** (GIF, APNG) → `animatedProcessor.ts`, which re-encodes through FFmpeg to
+  animated WebP. The canvas pipeline would flatten these to a single frame. WebP is the only
+  output because it is several times smaller than re-encoded GIF and much smaller than APNG.
+- **Not browser-decodable** (TIFF, PSD, QOI, Targa, JPEG 2000, DDS) → converted to PNG by
+  FFmpeg first, then handed to the ordinary canvas pipeline.
+- Everything else keeps the canvas path.
+
+Animated WebP is deliberately *not* re-encoded: FFmpeg writes it via `libwebp_anim` but its
+decoder returns only the first frame, so a round trip would silently destroy the animation.
+`isFFmpegDecodable` is false for that kind and the squisher refuses with an explanation.
+Both processors share the single wasm core through `getFFmpeg()` in `videoProcessor.ts`.
 
 ### State ownership
 

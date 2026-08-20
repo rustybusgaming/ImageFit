@@ -23,7 +23,11 @@ app.commandLine.appendSwitch("enable-gpu-rasterization");
 app.commandLine.appendSwitch("enable-zero-copy");
 app.commandLine.appendSwitch("ignore-gpu-blocklist");
 
-const MEDIA_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".mp4", ".webm", ".mov", ".m4v", ".avi", ".mkv"]);
+const MEDIA_EXTENSIONS = new Set([
+  ".png", ".apng", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif",
+  ".bmp", ".ico", ".tif", ".tiff", ".psd", ".qoi", ".tga", ".targa", ".dds", ".jp2", ".j2k",
+  ".mp4", ".webm", ".mov", ".m4v", ".avi", ".mkv",
+]);
 let mainWindow = null;
 let pendingOpenPaths = [];
 let updateReady = false;

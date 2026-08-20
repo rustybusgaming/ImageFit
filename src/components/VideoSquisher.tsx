@@ -76,6 +76,21 @@ const HARDWARE_ENCODERS: Record<Exclude<VideoEncoderEngine, "software">, Partial
   mf: { h264: "h264_mf", h265: "hevc_mf" },
 };
 
+// Mirrors ENGINE_PREFERENCE / pickFastestEngine in desktop/video-config.cjs, which is the
+// tested copy: vendor engines first, OS-level engines next, software last.
+const ENGINE_PREFERENCE: VideoEncoderEngine[] = ["nvenc", "qsv", "amf", "videotoolbox", "vaapi", "mf", "software"];
+
+function pickFastestEngine(codec: VideoCodec, availableEncoders: string[]): VideoEncoderEngine {
+  for (const engine of ENGINE_PREFERENCE) {
+    if (engine === "software") break;
+
+    const encoder = HARDWARE_ENCODERS[engine as Exclude<VideoEncoderEngine, "software">][codec];
+    if (encoder && availableEncoders.includes(encoder)) return engine;
+  }
+
+  return "software";
+}
+
 type QueueStatus = "waiting" | "encoding" | "ready" | "failed" | "cancelled";
 
 function getOutputFilename(file: File, presetId: string, format: VideoOutputFormat, codec: VideoCodec): string {
@@ -103,7 +118,8 @@ export default function VideoSquisher({ sourceFiles }: Props) {
   const [frameRate, setFrameRate] = useState<30 | 24 | 15>(30);
   const [format, setFormat] = useState<VideoOutputFormat>("mp4");
   const [codec, setCodec] = useState<VideoCodec>("h264");
-  const [encoder, setEncoder] = useState<VideoEncoderEngine>("software");
+  // null means "let ImageFit pick"; a value is an explicit choice from the engine picker.
+  const [engineChoice, setEngineChoice] = useState<VideoEncoderEngine | null>(null);
   const [availableEncoders, setAvailableEncoders] = useState<string[]>([]);
   const [isCompressing, setIsCompressing] = useState(false);
   const [isInspecting, setIsInspecting] = useState(true);
@@ -117,6 +133,7 @@ export default function VideoSquisher({ sourceFiles }: Props) {
   const cancellationRef = useRef(false);
   const selectedPreset = DISCORD_PRESETS.find((preset) => preset.id === presetId) ?? DISCORD_PRESETS[0];
   const isDesktop = isDesktopApp();
+  const encoder: VideoEncoderEngine = engineChoice ?? (isDesktop ? pickFastestEngine(codec, availableEncoders) : "software");
   // Two dropped files can share a name, so the queue is tracked by position rather than by filename.
   const queue = useMemo<QueueEntry[]>(() => sourceFiles.map((file, index) => ({ key: `${index}-${file.name}`, file })), [sourceFiles]);
 
@@ -125,6 +142,7 @@ export default function VideoSquisher({ sourceFiles }: Props) {
 
     void getAvailableVideoEncoders().then(setAvailableEncoders).catch(() => setAvailableEncoders([]));
   }, [isDesktop]);
+
 
   useEffect(() => {
     let cancelled = false;
@@ -348,7 +366,7 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                     setAudio("mute");
                   } else {
                     setCodec(CODEC_PRESETS.find((codecPreset) => codecPreset.format === preset.id)?.id ?? "h264");
-                    setEncoder("software");
+                    setEngineChoice(null);
                   }
                 }}
                 className={`border px-2 py-2 text-xs font-semibold uppercase transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
@@ -372,7 +390,7 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                 type="button"
                 onClick={() => {
                   setCodec(preset.id);
-                  setEncoder("software");
+                  setEngineChoice(null);
                 }}
                 className={`border px-2 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
                   preset.id === codec ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
@@ -399,7 +417,7 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                   key={preset.id}
                   type="button"
                   disabled={!supported}
-                  onClick={() => setEncoder(preset.id)}
+                  onClick={() => setEngineChoice(preset.id)}
                   className={`border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
                     encoder === preset.id ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
                   } disabled:cursor-not-allowed disabled:opacity-40`}

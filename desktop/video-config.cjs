@@ -55,6 +55,28 @@ const ENGINE_REQUIREMENTS = {
   },
 };
 
+/**
+ * Preference order when picking an engine automatically. Vendor engines talk to the GPU
+ * directly and are the fastest; Media Foundation and VAAPI go through an OS layer and are
+ * a little slower but far ahead of software, which is the last resort.
+ */
+const ENGINE_PREFERENCE = ["nvenc", "qsv", "amf", "videotoolbox", "vaapi", "mf", "software"];
+
+/**
+ * Fastest engine that can actually encode `codec` here, given the encoder names FFmpeg
+ * reported. Always resolves to something, because software encodes every supported codec.
+ */
+function pickFastestEngine(codec, availableEncoders, hardwareEncoders) {
+  for (const engine of ENGINE_PREFERENCE) {
+    if (engine === "software") return "software";
+
+    const encoder = hardwareEncoders[engine]?.[codec];
+    if (encoder && availableEncoders.includes(encoder)) return engine;
+  }
+
+  return "software";
+}
+
 function isEngineSupportedHere(engine, platform = process.platform) {
   return ENGINE_REQUIREMENTS[engine]?.isAvailable(platform) ?? true;
 }
@@ -138,6 +160,7 @@ function getOutputFilename(inputPath, payload) {
 
 module.exports = {
   CODEC_FORMATS,
+  ENGINE_PREFERENCE,
   ENGINE_REQUIREMENTS,
   MAX_SIZE_ATTEMPTS,
   MIN_VIDEO_BITRATE,
@@ -146,6 +169,7 @@ module.exports = {
   getVaapiDevice,
   isCodecCompatible,
   isEngineSupportedHere,
+  pickFastestEngine,
   planVideoBitrate,
   retargetVideoBitrate,
 };

@@ -115,7 +115,8 @@ function getErrorMessage(error: unknown): string {
   return "The local video encoder could not start. Reload the page and try again.";
 }
 
-async function getFFmpeg(): Promise<FFmpeg> {
+/** Shared with the animated-image encoder so only one wasm core is ever loaded. */
+export async function getFFmpeg(): Promise<FFmpeg> {
   if (ffmpeg) {
     return ffmpeg;
   }
