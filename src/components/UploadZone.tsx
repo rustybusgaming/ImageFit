@@ -67,7 +67,7 @@ export default function UploadZone({ onUpload, isBusy = false, error: externalEr
     <section className="mx-auto w-full max-w-5xl">
       <div
         {...getRootProps()}
-        className={`group relative cursor-pointer overflow-hidden border border-dashed p-10 text-center shadow-[0_24px_70px_-42px_rgba(0,0,0,0.95)] transition sm:p-16 ${
+        className={`group relative cursor-pointer overflow-hidden border border-dashed p-10 text-center shadow-[0_24px_70px_-42px_rgba(0,0,0,0.95)] transition sm:p-16 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] ${
           isDragActive
             ? "border-[#d7ff47] bg-[#20251a]"
             : "border-white/20 bg-[#151714] hover:border-[#d7ff47]/70 hover:bg-[#191c17]"
