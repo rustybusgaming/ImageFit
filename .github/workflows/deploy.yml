@@ -20,6 +20,7 @@ concurrency:
 jobs:
   web:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,6 +57,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # -------------------------
+          # Linux
+          # -------------------------
           - name: Linux
             os: ubuntu-latest
             command: pnpm desktop:package:linux
@@ -65,6 +69,9 @@ jobs:
               release/*.yml
               release/*.blockmap
 
+          # -------------------------
+          # macOS Apple Silicon
+          # -------------------------
           - name: macOS Apple Silicon
             os: macos-latest
             command: pnpm desktop:package:mac -- --arm64
@@ -75,8 +82,11 @@ jobs:
               release/*.yml
               release/*.blockmap
 
+          # -------------------------
+          # macOS Intel
+          # -------------------------
           - name: macOS Intel
-            os: macos-latest
+            os: macos-15-intel
             command: pnpm desktop:package:mac -- --x64
             artifact: imagefit-desktop-macos-x64
             path: |
@@ -85,6 +95,9 @@ jobs:
               release/*.yml
               release/*.blockmap
 
+          # -------------------------
+          # Windows
+          # -------------------------
           - name: Windows
             os: windows-latest
             command: pnpm desktop:package:win
@@ -110,13 +123,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # CSC_LINK must be left unset rather than set to an empty string:
-      # electron-builder reads an empty value as a certificate path,
-      # resolves it against the project directory and fails with:
-      # "<projectDir> not a file".
+      # CSC_LINK must be left unset rather than set to an empty string.
       #
-      # The signing variables are therefore exported from the shell only
-      # when a certificate secret actually exists.
+      # electron-builder treats an empty CSC_LINK as a certificate path,
+      # which results in an error such as:
+      #
+      # "<projectDir> not a file"
+      #
+      # Therefore we only export CSC_LINK when an actual certificate secret
+      # is present.
       - name: Build desktop app
         shell: bash
         run: |
@@ -138,30 +153,41 @@ jobs:
           esac
 
           if [ -n "$certificate" ]; then
+            echo "Using code-signing certificate for ${{ matrix.name }}."
+
             export CSC_LINK="$certificate"
             export CSC_KEY_PASSWORD="$password"
           else
             echo "No code-signing certificate for ${{ matrix.name }}; building unsigned."
+
             export CSC_IDENTITY_AUTO_DISCOVERY=false
           fi
 
+          echo "Building ${{ matrix.name }}..."
+          echo "Command: ${{ matrix.command }}"
+
           ${{ matrix.command }}
-        env:
-          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Show release files
+        shell: bash
+        run: |
+          echo "Files produced in release/:"
+          find release -maxdepth 1 -type f -print | sort
 
       - name: Upload desktop artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.path }}
+          if-no-files-found: error
 
   publish-desktop:
     name: Publish desktop release
+
     if: startsWith(github.ref, 'refs/tags/')
+
     needs: desktop
+
     runs-on: ubuntu-latest
 
     steps:
@@ -170,6 +196,12 @@ jobs:
         with:
           pattern: imagefit-desktop-*
           merge-multiple: true
+
+      - name: Show downloaded release files
+        shell: bash
+        run: |
+          echo "Files downloaded for GitHub release:"
+          find . -maxdepth 1 -type f -print | sort
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
