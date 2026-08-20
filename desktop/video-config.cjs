@@ -70,7 +70,10 @@ function isEngineSupportedHere(engine, platform = process.platform) {
  * step with it — this copy is the tested one.
  */
 const MIN_VIDEO_BITRATE = 100_000;
-const USABLE_FRACTION = 0.96;
+// 4% proved too tight: x264 lands just over the cap on the first pass once container and
+// audio overhead are counted, so every encode ran twice. 8% lands first time, which is both
+// faster and higher quality than the two-pass result the tighter margin produced.
+const USABLE_FRACTION = 0.92;
 const MAX_SIZE_ATTEMPTS = 3;
 
 function getAudioBitrate(audio, totalBitrate) {

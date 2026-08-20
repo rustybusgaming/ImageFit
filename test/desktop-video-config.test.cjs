@@ -121,6 +121,14 @@ test("size targets that the bitrate floor makes impossible are reported up front
   assert.equal(planVideoBitrate(20 * MB, 600, "mute").isReachable, true);
 });
 
+test("the opening plan leaves enough headroom to land in one pass", () => {
+  // Measured: a 4% margin overshot on the first attempt and forced a second encode, which
+  // roughly doubled encode time. The margin must stay generous enough to land first time.
+  const plan = planVideoBitrate(10 * MB, 60, "keep");
+  const predicted = ((plan.videoBitrate + plan.audioBitrate) * 60) / 8;
+  assert.ok(predicted <= 10 * MB * 0.95, `expected >=5% headroom, predicted ${predicted} of ${10 * MB}`);
+});
+
 test("a reachable plan stays within its byte budget", () => {
   for (const [maxBytes, duration] of [[5 * MB, 30], [10 * MB, 60], [20 * MB, 120]]) {
     const plan = planVideoBitrate(maxBytes, duration, "keep");

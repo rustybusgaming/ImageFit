@@ -67,7 +67,10 @@ They are not identical, and the differences matter:
   `retargetVideoBitrate` in `desktop/video-config.cjs` (unit-tested) and is mirrored by hand
   in `videoProcessor.ts` — keep the two in step. A target the 100 kbps floor cannot reach is
   rejected before any encode runs; an overshoot is retried up to `MAX_SIZE_ATTEMPTS` at a
-  bitrate corrected from the size actually produced. Retrying only helps bitrate-controlled
+  bitrate corrected from the size actually produced. `USABLE_FRACTION` exists to keep that
+  retry rare — it was 0.96, which x264 overshot on the first pass, so every browser encode
+  silently ran twice and took about twice as long. Treat a shrinking margin as a performance
+  regression, not just a quality tweak. Retrying only helps bitrate-controlled
   codecs: `mjpeg`, `prores`, and `dnxhd` set `-q:v`/`-profile:v`, so they ignore `-b:v`
   entirely and simply stop at the floor.
 

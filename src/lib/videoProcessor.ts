@@ -69,7 +69,7 @@ function getVideoFilter(settings: VideoExportSettings): string {
  * `desktop/video-config.cjs`, which is the unit-tested copy — keep the two in step.
  */
 const MIN_VIDEO_BITRATE = 100_000;
-const USABLE_FRACTION = 0.96;
+const USABLE_FRACTION = 0.92;
 const MAX_SIZE_ATTEMPTS = 3;
 
 function planVideoBitrate(maxBytes: number, duration: number, audio: VideoAudioMode) {
