@@ -64,6 +64,34 @@ function getVideoFilter(settings: VideoExportSettings): string {
   return `${watermarked}[overlaid];[overlaid]split[palettesource][frames];[palettesource]palettegen=stats_mode=diff[palette];[frames][palette]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle[video]`;
 }
 
+/**
+ * Size targeting. This mirrors `planVideoBitrate` / `retargetVideoBitrate` in
+ * `desktop/video-config.cjs`, which is the unit-tested copy — keep the two in step.
+ */
+const MIN_VIDEO_BITRATE = 100_000;
+const USABLE_FRACTION = 0.92;
+const MAX_SIZE_ATTEMPTS = 3;
+
+function planVideoBitrate(maxBytes: number, duration: number, audio: VideoAudioMode) {
+  const usableBytes = Math.floor(maxBytes * USABLE_FRACTION);
+  const totalBitrate = Math.floor((usableBytes * 8) / duration);
+  const audioBitrate = audio === "keep" ? Math.min(96_000, Math.floor(totalBitrate * 0.2)) : audio === "reduced" ? 48_000 : 0;
+
+  return {
+    videoBitrate: Math.max(MIN_VIDEO_BITRATE, totalBitrate - audioBitrate),
+    audioBitrate,
+    isReachable: (MIN_VIDEO_BITRATE + audioBitrate) * duration <= maxBytes * 8,
+  };
+}
+
+function retargetVideoBitrate(videoBitrate: number, actualBytes: number, maxBytes: number): number | null {
+  if (videoBitrate <= MIN_VIDEO_BITRATE) return null;
+
+  const corrected = Math.floor(((videoBitrate * maxBytes) / actualBytes) * 0.95);
+  const next = Math.max(MIN_VIDEO_BITRATE, corrected);
+  return next < videoBitrate ? next : null;
+}
+
 function getVideoMimeType(format: VideoOutputFormat): string {
   return {
     mp4: "video/mp4",
@@ -87,7 +115,8 @@ function getErrorMessage(error: unknown): string {
   return "The local video encoder could not start. Reload the page and try again.";
 }
 
-async function getFFmpeg(): Promise<FFmpeg> {
+/** Shared with the animated-image encoder so only one wasm core is ever loaded. */
+export async function getFFmpeg(): Promise<FFmpeg> {
   if (ffmpeg) {
     return ffmpeg;
   }
@@ -216,20 +245,25 @@ export async function compressVideoToTarget(
   let inputMounted = false;
   let inputWritten = false;
   let inputDirectoryCreated = false;
-  const usableBytes = Math.floor(settings.maxBytes * 0.96);
-  const totalBitrate = Math.floor((usableBytes * 8) / duration);
-  const audioBitrate = settings.audio === "keep" ? Math.min(96_000, Math.floor(totalBitrate * 0.2)) : settings.audio === "reduced" ? 48_000 : 0;
-  const videoBitrate = Math.max(100_000, totalBitrate - audioBitrate);
+  const plan = planVideoBitrate(settings.maxBytes, duration, settings.audio);
+
+  if (!plan.isReachable && settings.format !== "gif") {
+    throw new Error(
+      `A ${Math.round(duration)}-second video cannot fit ${Math.round(settings.maxBytes / (1024 * 1024))} MB. ` +
+      "Trim the clip, lower the frame rate, or pick a larger size limit."
+    );
+  }
+
   const filter = getVideoFilter(settings);
   const codec = VIDEO_ENCODERS[settings.codec];
-  const encodingArgs = settings.format === "gif"
+  const buildEncodingArgs = (videoBitrate: number) => settings.format === "gif"
     ? ["-loop", "0"]
     : [
         ...codec.args,
         "-b:v", `${Math.floor(videoBitrate / 1000)}k`,
         "-maxrate", `${Math.floor(videoBitrate / 1000)}k`,
         "-bufsize", `${Math.floor((videoBitrate * 2) / 1000)}k`,
-        ...getAudioArgs(settings.format, settings.audio, audioBitrate),
+        ...getAudioArgs(settings.format, settings.audio, plan.audioBitrate),
         ...(settings.format === "mp4" ? ["-movflags", "+faststart"] : []),
       ];
 
@@ -256,35 +290,46 @@ export async function compressVideoToTarget(
       inputWritten = true;
     }
     await encoder.writeFile(watermarkName, await createWatermark());
-    const exitCode = await encoder.exec([
-      "-i", inputName,
-      "-i", watermarkName,
-      "-filter_complex", filter,
-      "-map", "[video]",
-      ...(settings.format !== "gif" && settings.audio !== "mute" ? ["-map", "0:a?"] : []),
-      ...encodingArgs,
-      outputName,
-    ]);
 
-    if (exitCode !== 0) {
-      const diagnostic = encoderLogs.findLast((message) => /unknown encoder|encoder .* not found|invalid encoder/i.test(message))
-        ?? encoderLogs.findLast((message) => message.trim().length > 0);
-      throw new Error(diagnostic ? `Could not encode with ${codec.name}: ${diagnostic}` : `Could not encode with ${codec.name}. Try H.264 or a smaller file.`);
+    // The encoder only approximates the requested bitrate, so an overshoot is retried at a
+    // bitrate corrected from the size actually produced rather than being thrown away.
+    let videoBitrate = plan.videoBitrate;
+
+    for (let attempt = 0; attempt < MAX_SIZE_ATTEMPTS; attempt += 1) {
+      const exitCode = await encoder.exec([
+        "-i", inputName,
+        "-i", watermarkName,
+        "-filter_complex", filter,
+        "-map", "[video]",
+        ...(settings.format !== "gif" && settings.audio !== "mute" ? ["-map", "0:a?"] : []),
+        ...buildEncodingArgs(videoBitrate),
+        outputName,
+      ]);
+
+      if (exitCode !== 0) {
+        const diagnostic = encoderLogs.findLast((message) => /unknown encoder|encoder .* not found|invalid encoder/i.test(message))
+          ?? encoderLogs.findLast((message) => message.trim().length > 0);
+        throw new Error(diagnostic ? `Could not encode with ${codec.name}: ${diagnostic}` : `Could not encode with ${codec.name}. Try H.264 or a smaller file.`);
+      }
+
+      const output = await encoder.readFile(outputName);
+      if (typeof output === "string") {
+        throw new Error("Video encoder returned an invalid output.");
+      }
+
+      const videoData = new Uint8Array(output.byteLength);
+      videoData.set(output);
+      const result = new Blob([videoData.buffer], { type: getVideoMimeType(settings.format) });
+      if (result.size <= settings.maxBytes) {
+        return result;
+      }
+
+      const nextBitrate = settings.format === "gif" ? null : retargetVideoBitrate(videoBitrate, result.size, settings.maxBytes);
+      if (nextBitrate === null) break;
+      videoBitrate = nextBitrate;
     }
 
-    const output = await encoder.readFile(outputName);
-    if (typeof output === "string") {
-      throw new Error("Video encoder returned an invalid output.");
-    }
-
-    const videoData = new Uint8Array(output.byteLength);
-    videoData.set(output);
-    const result = new Blob([videoData.buffer], { type: getVideoMimeType(settings.format) });
-    if (result.size > settings.maxBytes) {
-      throw new Error("This video could not be reduced to the selected file-size limit.");
-    }
-
-    return result;
+    throw new Error("This video could not be reduced to the selected file-size limit.");
   } finally {
     encoder.off("progress", progressHandler);
     encoder.off("log", logHandler);

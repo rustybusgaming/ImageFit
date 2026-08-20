@@ -144,26 +144,57 @@ export async function compressImage(imageSrc: string, settings: CompressionSetti
 
 const MIN_TARGET_QUALITY = 0.42;
 const MIN_TARGET_SCALE = 0.2;
+const MAX_TARGET_ATTEMPTS = 8;
+/** Stop narrowing once the quality bracket is this tight; further steps change little. */
+const QUALITY_PRECISION = 0.04;
 
+/**
+ * Compresses to the largest file that still fits `maxBytes`.
+ *
+ * Stepping the quality down in fixed increments and returning the first result that fits
+ * tends to overshoot downwards — a preset that just missed the cap at 0.9 would drop to 0.8
+ * and hand back a file far smaller, and blurrier, than the budget allowed. This searches for
+ * the best quality that fits instead, and only reduces the dimensions once no quality setting
+ * at the current scale can get under the cap.
+ */
 export async function compressImageToTarget(imageSrc: string, settings: TargetCompressionSettings): Promise<Blob> {
-  let quality = settings.quality;
   let scale = settings.scale;
+  let attempts = 0;
 
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const result = await compressImage(imageSrc, { ...settings, quality, scale });
+  const encode = async (quality: number) => {
+    attempts += 1;
+    return compressImage(imageSrc, { ...settings, quality, scale });
+  };
 
-    if (result.size <= settings.maxBytes) {
-      return result;
+  while (attempts < MAX_TARGET_ATTEMPTS) {
+    const requested = await encode(settings.quality);
+    if (requested.size <= settings.maxBytes) return requested;
+
+    // If even the lowest acceptable quality overshoots, no amount of searching helps at this
+    // scale; shrinking the image is the only lever left.
+    const floor = await encode(MIN_TARGET_QUALITY);
+    if (floor.size <= settings.maxBytes) {
+      let low = MIN_TARGET_QUALITY;
+      let high = settings.quality;
+      let best = floor;
+
+      while (attempts < MAX_TARGET_ATTEMPTS && high - low > QUALITY_PRECISION) {
+        const mid = (low + high) / 2;
+        const candidate = await encode(mid);
+
+        if (candidate.size <= settings.maxBytes) {
+          best = candidate;
+          low = mid;
+        } else {
+          high = mid;
+        }
+      }
+
+      return best;
     }
 
-    if (quality > MIN_TARGET_QUALITY) {
-      quality = Math.max(MIN_TARGET_QUALITY, quality - 0.1);
-    } else if (scale > MIN_TARGET_SCALE) {
-      scale = Math.max(MIN_TARGET_SCALE, scale * 0.82);
-    } else {
-      // Both dials are already at their floor, so further attempts would repeat this one.
-      break;
-    }
+    if (scale <= MIN_TARGET_SCALE) break;
+    scale = Math.max(MIN_TARGET_SCALE, scale * 0.7);
   }
 
   throw new Error("This image could not be reduced to the selected file-size limit.");

@@ -11,8 +11,12 @@ coverage/
 *.tsbuildinfo
 
 # Keep source packaging assets while excluding generated build content.
+# icon.png is rendered from icon.svg but has to be committed: electron-builder cannot read
+# SVG when producing macOS .icns, and CI packages from a clean checkout.
 build/*
 !build/icon.svg
+!build/icon.png
+!build/entitlements.mac.plist
 
 # Environment files and signing material
 .env

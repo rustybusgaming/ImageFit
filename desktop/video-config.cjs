@@ -55,8 +55,79 @@ const ENGINE_REQUIREMENTS = {
   },
 };
 
+/**
+ * Preference order when picking an engine automatically. Vendor engines talk to the GPU
+ * directly and are the fastest; Media Foundation and VAAPI go through an OS layer and are
+ * a little slower but far ahead of software, which is the last resort.
+ */
+const ENGINE_PREFERENCE = ["nvenc", "qsv", "amf", "videotoolbox", "vaapi", "mf", "software"];
+
+/**
+ * Fastest engine that can actually encode `codec` here, given the encoder names FFmpeg
+ * reported. Always resolves to something, because software encodes every supported codec.
+ */
+function pickFastestEngine(codec, availableEncoders, hardwareEncoders) {
+  for (const engine of ENGINE_PREFERENCE) {
+    if (engine === "software") return "software";
+
+    const encoder = hardwareEncoders[engine]?.[codec];
+    if (encoder && availableEncoders.includes(encoder)) return engine;
+  }
+
+  return "software";
+}
+
 function isEngineSupportedHere(engine, platform = process.platform) {
   return ENGINE_REQUIREMENTS[engine]?.isAvailable(platform) ?? true;
+}
+
+/**
+ * Size targeting.
+ *
+ * A single pass often overshoots, because the encoder only approximates the requested bitrate.
+ * `planVideoBitrate` picks the opening bitrate and reports whether the target is reachable at
+ * all; `retargetVideoBitrate` scales it down from a measured overshoot for the next attempt.
+ *
+ * `src/lib/videoProcessor.ts` mirrors this maths for the browser encoder and must be kept in
+ * step with it — this copy is the tested one.
+ */
+const MIN_VIDEO_BITRATE = 100_000;
+// 4% proved too tight: x264 lands just over the cap on the first pass once container and
+// audio overhead are counted, so every encode ran twice. 8% lands first time, which is both
+// faster and higher quality than the two-pass result the tighter margin produced.
+const USABLE_FRACTION = 0.92;
+const MAX_SIZE_ATTEMPTS = 3;
+
+function getAudioBitrate(audio, totalBitrate) {
+  if (audio === "keep") return Math.min(96_000, Math.floor(totalBitrate * 0.2));
+  if (audio === "reduced") return 48_000;
+  return 0;
+}
+
+function planVideoBitrate(maxBytes, duration, audio) {
+  const usableBytes = Math.floor(maxBytes * USABLE_FRACTION);
+  const totalBitrate = Math.floor((usableBytes * 8) / duration);
+  const audioBitrate = getAudioBitrate(audio, totalBitrate);
+  const videoBitrate = Math.max(MIN_VIDEO_BITRATE, totalBitrate - audioBitrate);
+
+  return {
+    videoBitrate,
+    audioBitrate,
+    // The bitrate floor means some targets are unreachable however many attempts are made;
+    // saying so up front beats running an encode that is guaranteed to be rejected.
+    isReachable: (MIN_VIDEO_BITRATE + audioBitrate) * duration <= maxBytes * 8,
+  };
+}
+
+/** Next bitrate to try after `actualBytes` overshot `maxBytes`, or null once at the floor. */
+function retargetVideoBitrate(videoBitrate, actualBytes, maxBytes) {
+  if (videoBitrate <= MIN_VIDEO_BITRATE) return null;
+
+  // Aim slightly under the proportional correction, since the overshoot includes container
+  // and audio overhead that does not shrink with the video bitrate.
+  const corrected = Math.floor((videoBitrate * maxBytes) / actualBytes * 0.95);
+  const next = Math.max(MIN_VIDEO_BITRATE, corrected);
+  return next < videoBitrate ? next : null;
 }
 
 function isCodecCompatible(codec, format) {
@@ -89,10 +160,16 @@ function getOutputFilename(inputPath, payload) {
 
 module.exports = {
   CODEC_FORMATS,
+  ENGINE_PREFERENCE,
   ENGINE_REQUIREMENTS,
+  MAX_SIZE_ATTEMPTS,
+  MIN_VIDEO_BITRATE,
   assertVideoPayload,
   getOutputFilename,
   getVaapiDevice,
   isCodecCompatible,
   isEngineSupportedHere,
+  pickFastestEngine,
+  planVideoBitrate,
+  retargetVideoBitrate,
 };

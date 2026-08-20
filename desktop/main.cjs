@@ -4,7 +4,16 @@ const { spawn, spawnSync } = require("node:child_process");
 const path = require("node:path");
 const fs = require("node:fs");
 const https = require("node:https");
-const { ENGINE_REQUIREMENTS, assertVideoPayload, getOutputFilename, getVaapiDevice, isEngineSupportedHere } = require("./video-config.cjs");
+const {
+  ENGINE_REQUIREMENTS,
+  MAX_SIZE_ATTEMPTS,
+  assertVideoPayload,
+  getOutputFilename,
+  getVaapiDevice,
+  isEngineSupportedHere,
+  planVideoBitrate,
+  retargetVideoBitrate,
+} = require("./video-config.cjs");
 
 const GITHUB_REPO = "rustybusgaming/ImageFit";
 const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases/latest`;
@@ -14,7 +23,11 @@ app.commandLine.appendSwitch("enable-gpu-rasterization");
 app.commandLine.appendSwitch("enable-zero-copy");
 app.commandLine.appendSwitch("ignore-gpu-blocklist");
 
-const MEDIA_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".mp4", ".webm", ".mov", ".m4v", ".avi", ".mkv"]);
+const MEDIA_EXTENSIONS = new Set([
+  ".png", ".apng", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif",
+  ".bmp", ".ico", ".tif", ".tiff", ".psd", ".qoi", ".tga", ".targa", ".dds", ".jp2", ".j2k",
+  ".mp4", ".webm", ".mov", ".m4v", ".avi", ".mkv",
+]);
 let mainWindow = null;
 let pendingOpenPaths = [];
 let updateReady = false;
@@ -238,36 +251,45 @@ app.whenReady().then(() => {
     const outputDirectory = getOutputDirectory();
     fs.mkdirSync(outputDirectory, { recursive: true });
     const outputPath = path.join(outputDirectory, getOutputFilename(payload.inputPath, payload));
-    const usableBytes = Math.floor(payload.maxBytes * 0.96);
-    const totalBitrate = Math.floor((usableBytes * 8) / payload.duration);
-    const audioBitrate = payload.audio === "keep" ? Math.min(96_000, Math.floor(totalBitrate * 0.2)) : payload.audio === "reduced" ? 48_000 : 0;
-    const videoBitrate = Math.max(100_000, totalBitrate - audioBitrate);
-    const filter = getVideoFilter(payload.frameRate, payload.height, payload.format, payload.encoder);
-    const encodingArgs = payload.format === "gif"
-      ? ["-loop", "0"]
-      : [
-          ...getCodecArgs(payload.codec, payload.encoder),
-          "-b:v", `${Math.floor(videoBitrate / 1000)}k`,
-          "-maxrate", `${Math.floor(videoBitrate / 1000)}k`,
-          "-bufsize", `${Math.floor((videoBitrate * 2) / 1000)}k`,
-          ...getAudioArgs(payload.format, payload.audio, audioBitrate),
-          ...(payload.format === "mp4" ? ["-movflags", "+faststart"] : []),
-        ];
-    const vaapiDevice = payload.encoder === "vaapi" && payload.format !== "gif" ? getVaapiDevice() : null;
-    const args = [
-      "-y",
-      // Decode on the GPU where a supported device exists. FFmpeg silently falls back to
-      // software when it cannot initialise, and outputs software frames either way, so the
-      // filter chain below is unaffected.
-      ...(vaapiDevice ? ["-vaapi_device", vaapiDevice] : ["-hwaccel", "auto"]),
-      "-i", payload.inputPath,
-      "-vf", filter,
-      ...encodingArgs,
-      outputPath,
-    ];
+    const plan = planVideoBitrate(payload.maxBytes, payload.duration, payload.audio);
 
-    try {
-      await new Promise((resolve, reject) => {
+    if (!plan.isReachable && payload.format !== "gif") {
+      throw new Error(
+        `A ${Math.round(payload.duration)}-second video cannot fit ${Math.round(payload.maxBytes / (1024 * 1024))} MB. ` +
+        "Trim the clip, lower the frame rate, or pick a larger size limit."
+      );
+    }
+
+    const filter = getVideoFilter(payload.frameRate, payload.height, payload.format, payload.encoder);
+    const vaapiDevice = payload.encoder === "vaapi" && payload.format !== "gif" ? getVaapiDevice() : null;
+
+    function buildArgs(videoBitrate) {
+      const encodingArgs = payload.format === "gif"
+        ? ["-loop", "0"]
+        : [
+            ...getCodecArgs(payload.codec, payload.encoder),
+            "-b:v", `${Math.floor(videoBitrate / 1000)}k`,
+            "-maxrate", `${Math.floor(videoBitrate / 1000)}k`,
+            "-bufsize", `${Math.floor((videoBitrate * 2) / 1000)}k`,
+            ...getAudioArgs(payload.format, payload.audio, plan.audioBitrate),
+            ...(payload.format === "mp4" ? ["-movflags", "+faststart"] : []),
+          ];
+
+      return [
+        "-y",
+        // Decode on the GPU where a supported device exists. FFmpeg silently falls back to
+        // software when it cannot initialise, and outputs software frames either way, so the
+        // filter chain below is unaffected.
+        ...(vaapiDevice ? ["-vaapi_device", vaapiDevice] : ["-hwaccel", "auto"]),
+        "-i", payload.inputPath,
+        "-vf", filter,
+        ...encodingArgs,
+        outputPath,
+      ];
+    }
+
+    function runFfmpeg(args) {
+      return new Promise((resolve, reject) => {
         const ffmpegProcess = spawn(ffmpegPath, args, { windowsHide: true });
         activeEncodingJobs.set(payload.jobId, ffmpegProcess);
         let diagnostic = "";
@@ -290,19 +312,32 @@ app.whenReady().then(() => {
           }
         });
       });
-    } catch (error) {
-      removeFile(outputPath);
-      throw error;
-    } finally {
-      activeEncodingJobs.delete(payload.jobId);
     }
 
-    const size = fs.statSync(outputPath).size;
-    if (size > payload.maxBytes) {
-      removeFile(outputPath);
-      throw new Error("This video could not be reduced to the selected file-size limit.");
+    // The encoder only approximates the requested bitrate, so an overshoot is retried at a
+    // bitrate corrected from the size actually produced rather than being thrown away.
+    let videoBitrate = plan.videoBitrate;
+
+    for (let attempt = 0; attempt < MAX_SIZE_ATTEMPTS; attempt += 1) {
+      try {
+        await runFfmpeg(buildArgs(videoBitrate));
+      } catch (error) {
+        removeFile(outputPath);
+        throw error;
+      } finally {
+        activeEncodingJobs.delete(payload.jobId);
+      }
+
+      const size = fs.statSync(outputPath).size;
+      if (size <= payload.maxBytes) return { outputPath, size };
+
+      const nextBitrate = payload.format === "gif" ? null : retargetVideoBitrate(videoBitrate, size, payload.maxBytes);
+      if (nextBitrate === null) break;
+      videoBitrate = nextBitrate;
     }
-    return { outputPath, size };
+
+    removeFile(outputPath);
+    throw new Error("This video could not be reduced to the selected file-size limit.");
   });
 
   ipcMain.handle("desktop:video-cancel", (_event, jobIds) => {

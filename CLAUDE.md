@@ -12,6 +12,7 @@ pnpm build                # tsc -b && vite build  -> dist/
 pnpm test                 # node:test over test/**/*.test.cjs
 pnpm desktop              # build with --base=./ then launch Electron
 pnpm desktop:package:linux    # AppImage into release/
+pnpm desktop:package:mac      # DMG + zip into release/  (must run ON macOS)
 pnpm desktop:package:win      # NSIS + portable into release/
 ```
 
@@ -62,9 +63,21 @@ They are not identical, and the differences matter:
   native path uses plain `-vf` and relies on FFmpeg's default stream selection.
 - Commas inside filter expressions must be escaped: `scale=-2:min(720\,ih)`. An unescaped
   one makes FFmpeg read it as a filter separator and abort with `No such filter: 'ih)'`.
-- Both size-target their output in a single pass from `duration` and `maxBytes`, then
-  reject the result if it overshoots. There is no bitrate retry loop (the image path in
-  `compressImageToTarget` does iterate).
+- Both size-target their output the same way, but the maths lives in `planVideoBitrate` /
+  `retargetVideoBitrate` in `desktop/video-config.cjs` (unit-tested) and is mirrored by hand
+  in `videoProcessor.ts` — keep the two in step. A target the 100 kbps floor cannot reach is
+  rejected before any encode runs; an overshoot is retried up to `MAX_SIZE_ATTEMPTS` at a
+  bitrate corrected from the size actually produced. `USABLE_FRACTION` exists to keep that
+  retry rare — it was 0.96, which x264 overshot on the first pass, so every browser encode
+  silently ran twice and took about twice as long. Treat a shrinking margin as a performance
+  regression, not just a quality tweak. Retrying only helps bitrate-controlled
+  codecs: `mjpeg`, `prores`, and `dnxhd` set `-q:v`/`-profile:v`, so they ignore `-b:v`
+  entirely and simply stop at the floor.
+
+The engine is chosen automatically by `pickFastestEngine` (vendor engines, then the OS-level
+ones, then software) unless someone picks one in the UI; `VideoSquisher` derives it during
+render from `engineChoice ?? pickFastestEngine(...)` rather than storing it, and changing the
+codec or file type clears the manual choice.
 
 Hardware encoding is desktop-only. Engine→encoder names live in `HARDWARE_ENCODERS`
 (`desktop/main.cjs`), but whether an engine can actually run lives in `ENGINE_REQUIREMENTS`
@@ -100,7 +113,10 @@ callback.
 
 `src/lib/imageProcessor.ts` is the public API (`resizeImage` for `ExportPanel`'s platform
 presets, `compressImage` / `compressImageToTarget` for `ImageSquisher`, which works on the
-original upload and deliberately ignores the editor crop and export settings). It owns no
+original upload and deliberately ignores the editor crop and export settings).
+`compressImageToTarget` searches for the *highest* quality that fits the byte budget rather
+than returning the first setting that happens to fit, and only shrinks the dimensions once no
+quality at the current scale can get under the cap. It owns no
 drawing code — it decides where the work runs:
 
 1. `renderPool.ts` dispatches to a pool of `imageWorker.ts` workers (OffscreenCanvas), so a
@@ -131,6 +147,24 @@ Two details worth not "fixing":
 `gpuImageProcessor.ts` reports which of these paths is live (`getRenderPath()`) for the desktop
 panel; it decides nothing itself.
 
+### Animated and uncommon image formats
+
+`imageFormats.ts` decides what a file actually is from its bytes — extensions and MIME types
+cannot tell an animated GIF from a static one, and several accepted formats arrive as
+`application/octet-stream`. `ImageSquisher` then routes on that:
+
+- **Animated** (GIF, APNG) → `animatedProcessor.ts`, which re-encodes through FFmpeg to
+  animated WebP. The canvas pipeline would flatten these to a single frame. WebP is the only
+  output because it is several times smaller than re-encoded GIF and much smaller than APNG.
+- **Not browser-decodable** (TIFF, PSD, QOI, Targa, JPEG 2000, DDS) → converted to PNG by
+  FFmpeg first, then handed to the ordinary canvas pipeline.
+- Everything else keeps the canvas path.
+
+Animated WebP is deliberately *not* re-encoded: FFmpeg writes it via `libwebp_anim` but its
+decoder returns only the first frame, so a round trip would silently destroy the animation.
+`isFFmpegDecodable` is false for that kind and the squisher refuses with an explanation.
+Both processors share the single wasm core through `getFFmpeg()` in `videoProcessor.ts`.
+
 ### State ownership
 
 `App.tsx` holds all workflow state. `imageQueue` and `videoQueue` are mutually exclusive —
@@ -150,6 +184,20 @@ from the file identity to reset crop state between images.
   the surrounding palette rather than introducing named colours.
 - Platform presets live in `src/data/platforms.ts`; `id` is used as the export filename stem
   and must stay unique.
+
+### Desktop packaging
+
+Each platform must be packaged on its own OS, and not only for the usual code-signing reasons:
+`extraResources` copies `node_modules/ffmpeg-static`, whose binary is downloaded at install
+time for the *build host*. Packaging macOS on Linux produces an `.app` containing a Linux ELF
+`ffmpeg` that fails the moment a user encodes anything. The same applies to architecture — the
+macOS job runs on `macos-latest` (arm64) and therefore ships an arm64 FFmpeg, so Intel Macs
+would need their own runner rather than an extra `--x64` flag.
+
+macOS uses `build/icon.png` because electron-builder cannot read SVG for `.icns` conversion;
+it is rendered from `build/icon.svg`, so keep the two in sync if the artwork changes.
+`build/entitlements.mac.plist` relaxes library validation, which a signed build needs in order
+to spawn the bundled FFmpeg binary at all.
 
 ## CI
 

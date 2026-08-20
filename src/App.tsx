@@ -279,7 +279,10 @@ export default function App() {
 function getMediaType(filename: string): string {
   const extension = filename.split(".").pop()?.toLowerCase();
   return ({
-    png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
+    png: "image/png", apng: "image/apng", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif",
+    webp: "image/webp", svg: "image/svg+xml", avif: "image/avif", bmp: "image/bmp", ico: "image/x-icon",
+    tif: "image/tiff", tiff: "image/tiff", psd: "image/vnd.adobe.photoshop", qoi: "image/qoi",
+    tga: "image/x-targa", targa: "image/x-targa", dds: "image/vnd-ms.dds", jp2: "image/jp2", j2k: "image/j2k",
     mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime", m4v: "video/x-m4v", avi: "video/x-msvideo", mkv: "video/x-matroska",
   }[extension ?? ""] ?? "application/octet-stream");
 }

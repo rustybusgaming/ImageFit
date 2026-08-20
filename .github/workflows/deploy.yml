@@ -63,6 +63,15 @@ jobs:
               release/*.AppImage
               release/*.yml
               release/*.blockmap
+          - name: macOS
+            os: macos-latest
+            command: pnpm desktop:package:mac
+            artifact: imagefit-desktop-macos
+            path: |
+              release/*.dmg
+              release/*.zip
+              release/*.yml
+              release/*.blockmap
           - name: Windows
             os: windows-latest
             command: pnpm desktop:package:win
@@ -90,8 +99,10 @@ jobs:
       - name: Build desktop app
         run: ${{ matrix.command }}
         env:
-          CSC_LINK: ${{ matrix.name == 'Windows' && secrets.WINDOWS_CERTIFICATE_BASE64 || '' }}
-          CSC_KEY_PASSWORD: ${{ matrix.name == 'Windows' && secrets.WINDOWS_CERTIFICATE_PASSWORD || '' }}
+          CSC_LINK: ${{ matrix.name == 'Windows' && secrets.WINDOWS_CERTIFICATE_BASE64 || matrix.name == 'macOS' && secrets.APPLE_CERTIFICATE_BASE64 || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.name == 'Windows' && secrets.WINDOWS_CERTIFICATE_PASSWORD || matrix.name == 'macOS' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+          # Without a certificate electron-builder would otherwise search the keychain and fail the job.
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.name == 'macOS' && secrets.APPLE_CERTIFICATE_BASE64 != '' }}
 
       - name: Upload desktop artifact
         uses: actions/upload-artifact@v4
@@ -117,6 +128,8 @@ jobs:
           files: |
             *.AppImage
             *.exe
+            *.dmg
+            *.zip
             *.yml
             *.blockmap
           draft: false

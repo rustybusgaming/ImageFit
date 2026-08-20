@@ -30,7 +30,12 @@ export default function UploadZone({ onUpload }: UploadZoneProps) {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: {
-      "image/*": [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"],
+      // Several of these arrive as application/octet-stream because browsers do not know
+      // them, so the extension list is what actually admits them.
+      "image/*": [
+        ".png", ".apng", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif",
+        ".bmp", ".ico", ".tif", ".tiff", ".psd", ".qoi", ".tga", ".targa", ".dds", ".jp2", ".j2k",
+      ],
       "video/*": [".mp4", ".webm", ".mov", ".m4v", ".avi", ".mkv"],
     },
     multiple: true,
@@ -71,7 +76,7 @@ export default function UploadZone({ onUpload }: UploadZoneProps) {
         </p>
         <p className="mt-2 text-sm text-[#b7baaf]">or click to browse from your device</p>
         <p className="mt-5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9ea296]">
-          Images: PNG · JPG · WEBP · GIF · SVG up to 50 MB &nbsp;•&nbsp; Videos: MP4 · WEBM · MOV · MKV · AVI {supportsLargeVideoFiles ? "any local size" : "up to 3 GB"}
+          Images: PNG · APNG · JPG · WEBP · GIF · SVG · AVIF · BMP · TIFF · PSD · TGA · QOI up to 50 MB &nbsp;•&nbsp; Videos: MP4 · WEBM · MOV · MKV · AVI {supportsLargeVideoFiles ? "any local size" : "up to 3 GB"}
         </p>
 
         {error ? <p className="mt-4 text-sm text-[#ff9a7b]">{error}</p> : null}

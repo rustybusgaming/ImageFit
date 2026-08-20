@@ -8,6 +8,9 @@ const {
   getVaapiDevice,
   isCodecCompatible,
   isEngineSupportedHere,
+  pickFastestEngine,
+  planVideoBitrate,
+  retargetVideoBitrate,
 } = require("../desktop/video-config.cjs");
 
 const validPayload = {
@@ -102,4 +105,84 @@ test("every platform-bound engine explains why it is unavailable", () => {
     assert.equal(typeof requirement.message, "string", `${engine} needs a message`);
     assert.ok(requirement.message.length > 0, `${engine} needs a non-empty message`);
   }
+});
+
+const MB = 1024 * 1024;
+
+test("size targets that the bitrate floor makes impossible are reported up front", () => {
+  // Short clips have plenty of headroom.
+  assert.equal(planVideoBitrate(20 * MB, 30, "keep").isReachable, true);
+  assert.equal(planVideoBitrate(10 * MB, 30, "keep").isReachable, true);
+
+  // A 10-minute clip cannot fit 5 MB: the 100 kbps floor alone exceeds the budget.
+  assert.equal(planVideoBitrate(5 * MB, 600, "keep").isReachable, false);
+
+  // Muting frees the audio budget, but not enough to rescue a very long clip.
+  assert.equal(planVideoBitrate(5 * MB, 600, "mute").isReachable, false);
+  assert.equal(planVideoBitrate(20 * MB, 600, "mute").isReachable, true);
+});
+
+test("the opening plan leaves enough headroom to land in one pass", () => {
+  // Measured: a 4% margin overshot on the first attempt and forced a second encode, which
+  // roughly doubled encode time. The margin must stay generous enough to land first time.
+  const plan = planVideoBitrate(10 * MB, 60, "keep");
+  const predicted = ((plan.videoBitrate + plan.audioBitrate) * 60) / 8;
+  assert.ok(predicted <= 10 * MB * 0.95, `expected >=5% headroom, predicted ${predicted} of ${10 * MB}`);
+});
+
+test("a reachable plan stays within its byte budget", () => {
+  for (const [maxBytes, duration] of [[5 * MB, 30], [10 * MB, 60], [20 * MB, 120]]) {
+    const plan = planVideoBitrate(maxBytes, duration, "keep");
+    const predictedBytes = ((plan.videoBitrate + plan.audioBitrate) * duration) / 8;
+    assert.ok(predictedBytes <= maxBytes, `${maxBytes} over ${duration}s predicted ${predictedBytes}`);
+  }
+});
+
+test("retargeting steps down from a measured overshoot and stops at the floor", () => {
+  // A 40% overshoot should cut the bitrate by at least a proportional amount.
+  const next = retargetVideoBitrate(2_000_000, 14 * MB, 10 * MB);
+  assert.ok(next !== null && next < 2_000_000, "expected a lower bitrate");
+  assert.ok(next <= Math.floor((2_000_000 * 10) / 14), "expected at least a proportional cut");
+
+  // Retargeting converges rather than oscillating.
+  let bitrate = 2_000_000;
+  for (let i = 0; i < 3 && bitrate !== null; i += 1) {
+    const lower = retargetVideoBitrate(bitrate, 12 * MB, 10 * MB);
+    if (lower === null) break;
+    assert.ok(lower < bitrate, "each step must decrease");
+    bitrate = lower;
+  }
+
+  // At the floor there is nothing left to give.
+  assert.equal(retargetVideoBitrate(100_000, 99 * MB, 10 * MB), null);
+  // An output already under the cap would not be retargeted upward.
+  assert.equal(retargetVideoBitrate(100_000, 1 * MB, 10 * MB), null);
+});
+
+const HARDWARE_ENCODERS = {
+  nvenc: { h264: "h264_nvenc", h265: "hevc_nvenc", av1: "av1_nvenc" },
+  qsv: { h264: "h264_qsv", h265: "hevc_qsv", av1: "av1_qsv" },
+  amf: { h264: "h264_amf", h265: "hevc_amf", av1: "av1_amf" },
+  videotoolbox: { h264: "h264_videotoolbox", h265: "hevc_videotoolbox" },
+  vaapi: { h264: "h264_vaapi", h265: "hevc_vaapi", av1: "av1_vaapi" },
+  mf: { h264: "h264_mf", h265: "hevc_mf" },
+};
+const pick = (codec, available) => pickFastestEngine(codec, available, HARDWARE_ENCODERS);
+
+test("the fastest available engine is chosen automatically", () => {
+  // Vendor engines win over the OS-level ones when both are present.
+  assert.equal(pick("h264", ["h264_mf", "h264_qsv", "h264_nvenc"]), "nvenc");
+  assert.equal(pick("h264", ["h264_mf", "h264_qsv"]), "qsv");
+  assert.equal(pick("h264", ["h264_vaapi", "h264_mf"]), "vaapi");
+  assert.equal(pick("h264", ["h264_mf"]), "mf");
+});
+
+test("engine selection falls back to software rather than picking something unusable", () => {
+  assert.equal(pick("h264", []), "software");
+  // vp9/theora have no hardware encoder in the map at all.
+  assert.equal(pick("vp9", ["h264_nvenc", "hevc_nvenc"]), "software");
+  assert.equal(pick("theora", ["h264_nvenc"]), "software");
+  // An engine present for a different codec must not be selected for this one.
+  assert.equal(pick("av1", ["h264_videotoolbox", "hevc_videotoolbox"]), "software");
+  assert.equal(pick("av1", ["av1_qsv"]), "qsv");
 });
