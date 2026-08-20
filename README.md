@@ -55,7 +55,7 @@
   ImageFit is available in two forms:
 
   - **Website:** GitHub Actions builds `dist/` and deploys it to GitHub Pages whenever `main` is updated.
-  - **Desktop:** Electron packages the same interface with native FFmpeg video processing. Download the Linux AppImage, Windows portable `.exe`, or Windows NSIS installer from the GitHub Releases page.
+  - **Desktop:** Electron packages the same interface with native FFmpeg video processing. Download the Linux AppImage, macOS `.dmg`, Windows portable `.exe`, or Windows NSIS installer from the GitHub Releases page. macOS builds are Apple silicon and are currently unsigned, so the first launch needs Control-click → Open.
 
   ### Desktop development
 
@@ -68,6 +68,9 @@
 
   # Create a Windows portable executable in release/
   pnpm desktop:package:win
+
+  # Create a macOS DMG and update zip in release/ (must be run on macOS)
+  pnpm desktop:package:mac
   ```
 
   ### Desktop video engines

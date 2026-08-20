@@ -13,6 +13,7 @@
     "desktop": "pnpm run build:desktop && electron .",
     "desktop:package": "pnpm run build:desktop && electron-builder --publish never",
     "desktop:package:linux": "pnpm run build:desktop && electron-builder --linux appimage --publish never",
+    "desktop:package:mac": "pnpm run build:desktop && electron-builder --mac dmg zip --publish never",
     "desktop:package:win": "pnpm run build:desktop && electron-builder --win nsis portable --publish never",
     "lint": "eslint .",
     "test": "node --test test/**/*.test.cjs",
@@ -64,6 +65,18 @@
         "to": "ffmpeg"
       }
     ],
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.graphics-design",
+      "icon": "build/icon.png",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    },
     "win": {
       "target": [
         "nsis",

@@ -59,6 +59,52 @@ function isEngineSupportedHere(engine, platform = process.platform) {
   return ENGINE_REQUIREMENTS[engine]?.isAvailable(platform) ?? true;
 }
 
+/**
+ * Size targeting.
+ *
+ * A single pass often overshoots, because the encoder only approximates the requested bitrate.
+ * `planVideoBitrate` picks the opening bitrate and reports whether the target is reachable at
+ * all; `retargetVideoBitrate` scales it down from a measured overshoot for the next attempt.
+ *
+ * `src/lib/videoProcessor.ts` mirrors this maths for the browser encoder and must be kept in
+ * step with it — this copy is the tested one.
+ */
+const MIN_VIDEO_BITRATE = 100_000;
+const USABLE_FRACTION = 0.96;
+const MAX_SIZE_ATTEMPTS = 3;
+
+function getAudioBitrate(audio, totalBitrate) {
+  if (audio === "keep") return Math.min(96_000, Math.floor(totalBitrate * 0.2));
+  if (audio === "reduced") return 48_000;
+  return 0;
+}
+
+function planVideoBitrate(maxBytes, duration, audio) {
+  const usableBytes = Math.floor(maxBytes * USABLE_FRACTION);
+  const totalBitrate = Math.floor((usableBytes * 8) / duration);
+  const audioBitrate = getAudioBitrate(audio, totalBitrate);
+  const videoBitrate = Math.max(MIN_VIDEO_BITRATE, totalBitrate - audioBitrate);
+
+  return {
+    videoBitrate,
+    audioBitrate,
+    // The bitrate floor means some targets are unreachable however many attempts are made;
+    // saying so up front beats running an encode that is guaranteed to be rejected.
+    isReachable: (MIN_VIDEO_BITRATE + audioBitrate) * duration <= maxBytes * 8,
+  };
+}
+
+/** Next bitrate to try after `actualBytes` overshot `maxBytes`, or null once at the floor. */
+function retargetVideoBitrate(videoBitrate, actualBytes, maxBytes) {
+  if (videoBitrate <= MIN_VIDEO_BITRATE) return null;
+
+  // Aim slightly under the proportional correction, since the overshoot includes container
+  // and audio overhead that does not shrink with the video bitrate.
+  const corrected = Math.floor((videoBitrate * maxBytes) / actualBytes * 0.95);
+  const next = Math.max(MIN_VIDEO_BITRATE, corrected);
+  return next < videoBitrate ? next : null;
+}
+
 function isCodecCompatible(codec, format) {
   return format === "gif" || CODEC_FORMATS[codec]?.includes(format) === true;
 }
@@ -90,9 +136,13 @@ function getOutputFilename(inputPath, payload) {
 module.exports = {
   CODEC_FORMATS,
   ENGINE_REQUIREMENTS,
+  MAX_SIZE_ATTEMPTS,
+  MIN_VIDEO_BITRATE,
   assertVideoPayload,
   getOutputFilename,
   getVaapiDevice,
   isCodecCompatible,
   isEngineSupportedHere,
+  planVideoBitrate,
+  retargetVideoBitrate,
 };

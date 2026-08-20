@@ -12,6 +12,7 @@ pnpm build                # tsc -b && vite build  -> dist/
 pnpm test                 # node:test over test/**/*.test.cjs
 pnpm desktop              # build with --base=./ then launch Electron
 pnpm desktop:package:linux    # AppImage into release/
+pnpm desktop:package:mac      # DMG + zip into release/  (must run ON macOS)
 pnpm desktop:package:win      # NSIS + portable into release/
 ```
 
@@ -62,9 +63,13 @@ They are not identical, and the differences matter:
   native path uses plain `-vf` and relies on FFmpeg's default stream selection.
 - Commas inside filter expressions must be escaped: `scale=-2:min(720\,ih)`. An unescaped
   one makes FFmpeg read it as a filter separator and abort with `No such filter: 'ih)'`.
-- Both size-target their output in a single pass from `duration` and `maxBytes`, then
-  reject the result if it overshoots. There is no bitrate retry loop (the image path in
-  `compressImageToTarget` does iterate).
+- Both size-target their output the same way, but the maths lives in `planVideoBitrate` /
+  `retargetVideoBitrate` in `desktop/video-config.cjs` (unit-tested) and is mirrored by hand
+  in `videoProcessor.ts` — keep the two in step. A target the 100 kbps floor cannot reach is
+  rejected before any encode runs; an overshoot is retried up to `MAX_SIZE_ATTEMPTS` at a
+  bitrate corrected from the size actually produced. Retrying only helps bitrate-controlled
+  codecs: `mjpeg`, `prores`, and `dnxhd` set `-q:v`/`-profile:v`, so they ignore `-b:v`
+  entirely and simply stop at the floor.
 
 Hardware encoding is desktop-only. Engine→encoder names live in `HARDWARE_ENCODERS`
 (`desktop/main.cjs`), but whether an engine can actually run lives in `ENGINE_REQUIREMENTS`
@@ -150,6 +155,20 @@ from the file identity to reset crop state between images.
   the surrounding palette rather than introducing named colours.
 - Platform presets live in `src/data/platforms.ts`; `id` is used as the export filename stem
   and must stay unique.
+
+### Desktop packaging
+
+Each platform must be packaged on its own OS, and not only for the usual code-signing reasons:
+`extraResources` copies `node_modules/ffmpeg-static`, whose binary is downloaded at install
+time for the *build host*. Packaging macOS on Linux produces an `.app` containing a Linux ELF
+`ffmpeg` that fails the moment a user encodes anything. The same applies to architecture — the
+macOS job runs on `macos-latest` (arm64) and therefore ships an arm64 FFmpeg, so Intel Macs
+would need their own runner rather than an extra `--x64` flag.
+
+macOS uses `build/icon.png` because electron-builder cannot read SVG for `.icns` conversion;
+it is rendered from `build/icon.svg`, so keep the two in sync if the artwork changes.
+`build/entitlements.mac.plist` relaxes library validation, which a signed build needs in order
+to spawn the bundled FFmpeg binary at all.
 
 ## CI
 
