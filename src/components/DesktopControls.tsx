@@ -15,6 +15,7 @@ const CAPABILITIES = [
   { name: "AMD AMF", encoders: ["h264_amf", "hevc_amf", "av1_amf"], detail: "H.264, HEVC, and AV1 on supported AMD graphics." },
   { name: "Apple VideoToolbox", encoders: ["h264_videotoolbox", "hevc_videotoolbox"], detail: "H.264 and HEVC on Apple hardware." },
   { name: "Linux VAAPI", encoders: ["h264_vaapi", "hevc_vaapi", "av1_vaapi"], detail: "H.264, HEVC, and AV1 through a Linux DRM render node." },
+  { name: "Windows Media Foundation", encoders: ["h264_mf", "hevc_mf"], detail: "H.264 and HEVC through any Windows graphics driver." },
 ] as const;
 
 export default function DesktopControls({ onOpenMedia }: Props) {

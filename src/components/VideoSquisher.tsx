@@ -16,8 +16,9 @@ interface QueueEntry {
 }
 
 const DISCORD_PRESETS = [
-  { id: "discord-10mb", label: "Discord 10 MB", maxBytes: 10 * 1024 * 1024 },
-  { id: "discord-5mb", label: "Discord 5 MB", maxBytes: 5 * 1024 * 1024 },
+  { id: "discord-5mb", label: "5 MB", maxBytes: 5 * 1024 * 1024 },
+  { id: "discord-10mb", label: "10 MB", maxBytes: 10 * 1024 * 1024 },
+  { id: "discord-20mb", label: "20 MB", maxBytes: 20 * 1024 * 1024 },
 ] as const;
 
 const RESOLUTION_PRESETS: Array<{ id: VideoResolution; label: string; description: string }> = [
@@ -63,6 +64,7 @@ const ENCODER_PRESETS: Array<{ id: VideoEncoderEngine; label: string; descriptio
   { id: "amf", label: "AMD AMF", description: "AMD GPU" },
   { id: "videotoolbox", label: "Apple VideoToolbox", description: "Apple hardware" },
   { id: "vaapi", label: "Linux VAAPI", description: "Intel or AMD on Linux" },
+  { id: "mf", label: "Media Foundation", description: "Any GPU on Windows" },
 ];
 
 const HARDWARE_ENCODERS: Record<Exclude<VideoEncoderEngine, "software">, Partial<Record<VideoCodec, string>>> = {
@@ -71,13 +73,10 @@ const HARDWARE_ENCODERS: Record<Exclude<VideoEncoderEngine, "software">, Partial
   amf: { h264: "h264_amf", h265: "hevc_amf", av1: "av1_amf" },
   videotoolbox: { h264: "h264_videotoolbox", h265: "hevc_videotoolbox" },
   vaapi: { h264: "h264_vaapi", h265: "hevc_vaapi", av1: "av1_vaapi" },
+  mf: { h264: "h264_mf", h265: "hevc_mf" },
 };
 
 type QueueStatus = "waiting" | "encoding" | "ready" | "failed" | "cancelled";
-
-function formatBytes(bytes: number): string {
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function getOutputFilename(file: File, presetId: string, format: VideoOutputFormat, codec: VideoCodec): string {
   const sourceName = file.name.replace(/\.[^.]+$/, "") || "video";
@@ -266,18 +265,19 @@ export default function VideoSquisher({ sourceFiles }: Props) {
         </div>
       ) : isInspecting ? <p className="mt-4 text-sm text-[#e8bbae]">Checking source compatibility...</p> : null}
 
-      <div className="mt-4 grid grid-cols-2 gap-2">
+      <div className="mt-4 grid grid-cols-3 gap-2" role="group" aria-label="Upload size limit">
         {DISCORD_PRESETS.map((preset) => (
           <button
             key={preset.id}
             type="button"
             onClick={() => setPresetId(preset.id)}
+            aria-pressed={preset.id === presetId}
             className={`border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
               preset.id === presetId ? "border-[#ff7448] bg-[#2b1913] shadow-[3px_3px_0_#ff7448]" : "border-[#ff7448]/20 bg-[#211814] hover:border-[#ff7448]/60"
             }`}
           >
             <span className="block text-sm font-semibold text-[#fff5ee]">{preset.label}</span>
-            <span className="mt-1 block text-xs leading-4 text-[#e8bbae]">Target limit: {formatBytes(preset.maxBytes)}</span>
+            <span className="mt-1 block text-xs leading-4 text-[#e8bbae]">Upload limit</span>
           </button>
         ))}
       </div>

@@ -8,7 +8,7 @@ export type VideoResolution = "1080p" | "720p" | "480p";
 export type VideoAudioMode = "keep" | "reduced" | "mute";
 export type VideoOutputFormat = "mp4" | "webm" | "mov" | "avi" | "ogv" | "gif";
 export type VideoCodec = "h264" | "h265" | "av1" | "vp8" | "vp9" | "mpeg4" | "prores" | "dnxhd" | "mjpeg" | "theora";
-export type VideoEncoderEngine = "software" | "nvenc" | "qsv" | "amf" | "videotoolbox" | "vaapi";
+export type VideoEncoderEngine = "software" | "nvenc" | "qsv" | "amf" | "videotoolbox" | "vaapi" | "mf";
 
 export interface VideoExportSettings {
   maxBytes: number;
