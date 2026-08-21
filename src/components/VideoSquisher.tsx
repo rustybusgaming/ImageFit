@@ -327,11 +327,18 @@ export default function VideoSquisher({ sourceFiles }: Props) {
               <button
                 key={preset.id}
                 type="button"
-                onClick={() => setAudio(preset.id)}
-                disabled={format === "gif"}
+                onClick={(e) => {
+                  if (format === "gif") {
+                    e.preventDefault();
+                    return;
+                  }
+                  setAudio(preset.id);
+                }}
+                aria-disabled={format === "gif"}
+                title={format === "gif" ? "GIFs do not support audio" : undefined}
                 className={`border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
                   preset.id === audio ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
-                } disabled:cursor-not-allowed disabled:opacity-40`}
+                } aria-disabled:cursor-not-allowed aria-disabled:opacity-40`}
               >
                 {preset.label}
               </button>
@@ -416,11 +423,18 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                 <button
                   key={preset.id}
                   type="button"
-                  disabled={!supported}
-                  onClick={() => setEngineChoice(preset.id)}
+                  aria-disabled={!supported}
+                  title={!supported ? `This engine does not support ${CODEC_PRESETS.find((c) => c.id === codec)?.label} or is not available on your device` : undefined}
+                  onClick={(e) => {
+                    if (!supported) {
+                      e.preventDefault();
+                      return;
+                    }
+                    setEngineChoice(preset.id);
+                  }}
                   className={`border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
                     encoder === preset.id ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
-                  } disabled:cursor-not-allowed disabled:opacity-40`}
+                  } aria-disabled:cursor-not-allowed aria-disabled:opacity-40`}
                 >
                   <span className="block">{preset.label}</span>
                   <span className="mt-1 block font-normal text-[#aeb2a5]">{preset.description}</span>
