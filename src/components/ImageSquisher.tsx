@@ -107,15 +107,14 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2">
+      <div className="mt-4 grid grid-cols-2 gap-2" role="group" aria-label="Compression preset">
         {SQUISH_PRESETS.map((preset) => (
           <button
             key={preset.id}
             type="button"
             onClick={() => setPresetId(preset.id)}
-            className={`border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
-              presetId === preset.id ? "border-[#ff7448] bg-[#2b1913] shadow-[3px_3px_0_#ff7448]" : "border-[#ff7448]/20 bg-[#211814] hover:border-[#ff7448]/60"
-            }`}
+            aria-pressed={presetId === preset.id}
+            className="border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] border-[#ff7448]/20 bg-[#211814] hover:border-[#ff7448]/60 aria-pressed:border-[#ff7448] aria-pressed:bg-[#2b1913] aria-pressed:shadow-[3px_3px_0_#ff7448]"
           >
             <span className="block text-sm font-semibold text-[#fff5ee]">{preset.label}</span>
             <span className="mt-1 block text-xs leading-4 text-[#e8bbae]">{preset.description}</span>
@@ -125,13 +124,20 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
 
       <button
         type="button"
-        disabled={isCompressing}
-        onClick={squishImage}
-        className="mt-4 inline-flex w-full items-center justify-center gap-2 bg-[#ff7448] px-5 py-3 text-sm font-bold text-[#21100b] transition hover:bg-[#ff9a7b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] disabled:cursor-not-allowed disabled:bg-[#6d392d] disabled:text-[#e8bbae]"
+        aria-disabled={isCompressing}
+        title={isCompressing ? "Compression in progress..." : undefined}
+        onClick={(e) => {
+          if (isCompressing) {
+            e.preventDefault();
+            return;
+          }
+          void squishImage();
+        }}
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 bg-[#ff7448] px-5 py-3 text-sm font-bold text-[#21100b] transition hover:bg-[#ff9a7b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] aria-disabled:cursor-not-allowed aria-disabled:bg-[#6d392d] aria-disabled:text-[#e8bbae]"
       >
-        {isCompressing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shrink className="h-4 w-4" />}
+        {isCompressing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Shrink className="h-4 w-4" aria-hidden="true" />}
         {isCompressing ? "Squishing..." : `Squish it: ${selectedPreset.label}`}
-        {!isCompressing && <Download className="h-4 w-4" />}
+        {!isCompressing && <Download className="h-4 w-4" aria-hidden="true" />}
       </button>
       {result ? <p className="mt-3 text-sm font-medium text-[#d7ff47]">{result}</p> : null}
       {error ? <p className="mt-3 text-sm text-[#ffb39d]">{error}</p> : null}
