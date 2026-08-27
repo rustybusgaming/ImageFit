@@ -1,12 +1,3 @@
-/**
- * The single implementation of ImageFit's canvas compositing.
- *
- * It is parameterised by a `CanvasBackend` so the identical code runs against `OffscreenCanvas`
- * inside the render worker and against DOM canvases on the main thread when workers or
- * OffscreenCanvas are unavailable. Keep new drawing behaviour here rather than in either caller,
- * so the two runtimes cannot drift apart.
- */
-
 import type { ExportSettings, ImageEffect, ImageTransform, OutputFormat } from "./imageProcessor";
 
 export type AnyCanvas = OffscreenCanvas | HTMLCanvasElement;
@@ -50,13 +41,11 @@ function drawBackground(
   if (settings.background === "transparent") {
     return;
   }
-
   if (settings.background === "solid" || settings.background === "cover") {
     ctx.fillStyle = settings.backgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     return;
   }
-
   if (settings.background === "gradient") {
     const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
     gradient.addColorStop(0, settings.backgroundColor);
@@ -76,11 +65,8 @@ function drawBackground(
 }
 
 export interface ResizeOptions {
-  /** The untreated source, used for the blurred backdrop so the effect stays off the background. */
   source: ImageBitmap;
-  /** The source with any colour treatment already baked in by the GPU pass, or `source` itself. */
   foreground: ImageBitmap;
-  /** Applied only when the GPU pass did not already handle the treatment. */
   canvasFilter: string;
   preset: PresetSize;
   transform?: ImageTransform;
@@ -91,7 +77,15 @@ export async function renderResize(backend: CanvasBackend, options: ResizeOption
   const { source, foreground, canvasFilter, preset, transform, settings } = options;
   const { canvas, ctx } = backend.create(preset.width, preset.height);
 
-  const crop = transform?.crop ?? { x: 0, y: 0, width: foreground.width, height: foreground.height };
+  // FIX: Force integers to prevent subpixel edge bleeding/cutoffs
+  const rawCrop = transform?.crop ?? { x: 0, y: 0, width: foreground.width, height: foreground.height };
+  const crop = {
+    x: Math.max(0, Math.round(rawCrop.x)),
+    y: Math.max(0, Math.round(rawCrop.y)),
+    width: Math.round(rawCrop.width),
+    height: Math.round(rawCrop.height),
+  };
+
   const isContain = settings.background !== "cover";
   const scale = isContain
     ? Math.min(preset.width / crop.width, preset.height / crop.height)
@@ -106,11 +100,10 @@ export async function renderResize(backend: CanvasBackend, options: ResizeOption
   ctx.filter = canvasFilter;
 
   if (transform?.rotation) {
-    // react-easy-crop reports the crop relative to the rotated bounding box, so the image is
-    // rotated into an intermediate canvas of that size before the crop rect is taken out of it.
     const radians = (transform.rotation * Math.PI) / 180;
     const sin = Math.abs(Math.sin(radians));
     const cos = Math.abs(Math.cos(radians));
+
     const rotated = backend.create(
       Math.ceil(foreground.width * cos + foreground.height * sin),
       Math.ceil(foreground.width * sin + foreground.height * cos)
@@ -119,6 +112,7 @@ export async function renderResize(backend: CanvasBackend, options: ResizeOption
     rotated.ctx.translate(rotated.canvas.width / 2, rotated.canvas.height / 2);
     rotated.ctx.rotate(radians);
     rotated.ctx.drawImage(foreground, -foreground.width / 2, -foreground.height / 2);
+
     ctx.drawImage(rotated.canvas, crop.x, crop.y, crop.width, crop.height, x, y, width, height);
   } else {
     ctx.drawImage(foreground, crop.x, crop.y, crop.width, crop.height, x, y, width, height);

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Plus } from "lucide-react";
 import { platforms } from "../data/platforms";
 import type { PlatformPreset } from "../data/platforms";
 
@@ -9,8 +10,15 @@ interface Props {
 export default function PlatformSelector({ onSelect }: Props) {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<PlatformPreset[]>([]);
+  
+  // Custom Preset Form State
+  const [customW, setCustomW] = useState<number | "">("");
+  const [customH, setCustomH] = useState<number | "">("");
+  const [customPresets, setCustomPresets] = useState<PlatformPreset[]>([]);
 
-  const filtered = platforms.filter((item) =>
+  // Merge custom presets with the defaults so they appear in the grid
+  const allPlatforms = [...customPresets, ...platforms];
+  const filtered = allPlatforms.filter((item) =>
     `${item.platform} ${item.name}`.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -19,9 +27,29 @@ export default function PlatformSelector({ onSelect }: Props) {
     const updated = exists
       ? selected.filter((item) => item.id !== platform.id)
       : [...selected, platform];
-
     setSelected(updated);
     onSelect(updated);
+  }
+
+  function addCustomPreset(e: React.FormEvent) {
+    e.preventDefault();
+    if (!customW || !customH || customW < 1 || customH < 1) return;
+
+    const customPreset: PlatformPreset = {
+      id: `custom-${Date.now()}`,
+      platform: "Custom",
+      name: `${customW} × ${customH}`,
+      width: Number(customW),
+      height: Number(customH),
+      format: "jpg",
+    };
+
+    setCustomPresets([customPreset, ...customPresets]);
+    const updated = [...selected, customPreset];
+    setSelected(updated);
+    onSelect(updated);
+    setCustomW("");
+    setCustomH("");
   }
 
   return (
@@ -35,6 +63,41 @@ export default function PlatformSelector({ onSelect }: Props) {
           {selected.length} selected
         </div>
       </div>
+
+      {/* CUSTOM PRESET BUILDER */}
+      <form onSubmit={addCustomPreset} className="mt-5 flex items-end gap-3 border border-white/10 bg-[#1b1e1a] p-3">
+        <div className="flex-1">
+          <label htmlFor="custom-width" className="mb-1 block text-xs font-medium text-[#aeb2a5]">Width (px)</label>
+          <input
+            id="custom-width"
+            type="number"
+            min="1"
+            placeholder="1080"
+            value={customW}
+            onChange={(e) => setCustomW(e.target.value === "" ? "" : Number(e.target.value))}
+            className="w-full border border-white/10 bg-[#151714] px-3 py-2 text-sm text-[#f4f4ed] outline-none transition focus:border-[#d7ff47]"
+          />
+        </div>
+        <div className="flex-1">
+          <label htmlFor="custom-height" className="mb-1 block text-xs font-medium text-[#aeb2a5]">Height (px)</label>
+          <input
+            id="custom-height"
+            type="number"
+            min="1"
+            placeholder="1080"
+            value={customH}
+            onChange={(e) => setCustomH(e.target.value === "" ? "" : Number(e.target.value))}
+            className="w-full border border-white/10 bg-[#151714] px-3 py-2 text-sm text-[#f4f4ed] outline-none transition focus:border-[#d7ff47]"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={!customW || !customH}
+          className="inline-flex h-[38px] items-center gap-2 border border-[#d7ff47]/45 bg-[#20251a] px-4 text-sm font-semibold text-[#d7ff47] transition hover:border-[#d7ff47] hover:bg-[#292f21] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Plus className="h-4 w-4" /> Add
+        </button>
+      </form>
 
       <label htmlFor="platform-search" className="sr-only">
         Search platforms
@@ -67,12 +130,12 @@ export default function PlatformSelector({ onSelect }: Props) {
                     : "border-white/10 bg-[#1b1e1a] hover:border-white/30 hover:bg-[#20231e]"
                 }`}
                 aria-pressed={isSelected}
-                aria-label={`${platform.platform} ${platform.name}, ${platform.width}×${platform.height}`}
+                aria-label={`${platform.platform} ${platform.name}, ${platform.width} ${platform.height}`}
               >
                 <div className="font-semibold text-[#f0f1e9]">{platform.platform}</div>
                 <div className="mt-1 text-sm text-[#b7baaf]">{platform.name}</div>
                 <p className="mt-2 font-mono text-xs text-[#8f9389]">
-                  {platform.width}×{platform.height}
+                  {platform.width} × {platform.height}
                 </p>
               </button>
             );
