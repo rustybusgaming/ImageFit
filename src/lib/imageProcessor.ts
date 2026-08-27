@@ -19,6 +19,8 @@ export interface ExportSettings {
   background: BackgroundMode;
   backgroundColor: string;
   effect: ImageEffect;
+  forcePOT?: boolean;
+  stripMetadata?: boolean;
 }
 
 export interface CompressionSettings {
@@ -84,16 +86,33 @@ export async function resizeImage(
   preset: PlatformPreset,
   transform?: ImageTransform,
   settings: ExportSettings = {
-    format: preset.format,
+    format: preset.format || "jpg",
     quality: 0.92,
     background: "cover",
     backgroundColor: "#101828",
     effect: "none",
   }
 ): Promise<Blob> {
+  
+  // Power of Two (POT) Calculation
+  let targetWidth = preset.width;
+  let targetHeight = preset.height;
+  
+  if (settings.forcePOT) {
+    targetWidth = Math.pow(2, Math.ceil(Math.log2(targetWidth)));
+    targetHeight = Math.pow(2, Math.ceil(Math.log2(targetHeight)));
+  }
+
+  // Create a modified preset so all downstream renderers use the POT dimensions
+  const activePreset = {
+    ...preset,
+    width: targetWidth,
+    height: targetHeight,
+  };
+
   const job = {
     kind: "resize",
-    preset: { width: preset.width, height: preset.height },
+    preset: { width: activePreset.width, height: activePreset.height },
     transform,
     settings,
   } as const;
@@ -104,12 +123,13 @@ export async function resizeImage(
   const source = await decodeOnMainThread(imageSrc);
   const treated = await applyEffectOnGPU(source, settings.effect);
 
+  // Note: EXIF/Metadata is naturally stripped here when drawing the ImageBitmap to the Canvas Backend
   try {
     return await renderResize(domBackend, {
       source,
       foreground: treated ?? source,
       canvasFilter: treated ? "none" : getCanvasFilter(settings.effect),
-      preset,
+      preset: activePreset,
       transform,
       settings,
     });
@@ -145,18 +165,8 @@ export async function compressImage(imageSrc: string, settings: CompressionSetti
 const MIN_TARGET_QUALITY = 0.42;
 const MIN_TARGET_SCALE = 0.2;
 const MAX_TARGET_ATTEMPTS = 8;
-/** Stop narrowing once the quality bracket is this tight; further steps change little. */
 const QUALITY_PRECISION = 0.04;
 
-/**
- * Compresses to the largest file that still fits `maxBytes`.
- *
- * Stepping the quality down in fixed increments and returning the first result that fits
- * tends to overshoot downwards — a preset that just missed the cap at 0.9 would drop to 0.8
- * and hand back a file far smaller, and blurrier, than the budget allowed. This searches for
- * the best quality that fits instead, and only reduces the dimensions once no quality setting
- * at the current scale can get under the cap.
- */
 export async function compressImageToTarget(imageSrc: string, settings: TargetCompressionSettings): Promise<Blob> {
   let scale = settings.scale;
   let attempts = 0;
@@ -170,8 +180,6 @@ export async function compressImageToTarget(imageSrc: string, settings: TargetCo
     const requested = await encode(settings.quality);
     if (requested.size <= settings.maxBytes) return requested;
 
-    // If even the lowest acceptable quality overshoots, no amount of searching helps at this
-    // scale; shrinking the image is the only lever left.
     const floor = await encode(MIN_TARGET_QUALITY);
     if (floor.size <= settings.maxBytes) {
       let low = MIN_TARGET_QUALITY;
