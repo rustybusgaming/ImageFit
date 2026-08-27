@@ -37,16 +37,18 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
     img.src = image;
   }, [image]);
 
-  const originalPreset: PlatformPreset | null = originalDimensions
+const originalPreset: PlatformPreset | null = originalDimensions
     ? {
         id: "original",
+        platform: "custom", // <-- Added this
+        format: format,     // <-- Added this
         name: "Original Resolution",
         width: originalDimensions.width,
         height: originalDimensions.height,
         description: "Exact 1:1 original pixel dimensions",
       } as PlatformPreset
     : null;
-
+    
   const activePlatforms = useOriginalSize && originalPreset ? [originalPreset] : platforms;
   const previewPlatform = activePlatforms[0];
   const previewKey = JSON.stringify({
