@@ -92,8 +92,14 @@ export default function PlatformSelector({ onSelect }: Props) {
         </div>
         <button
           type="submit"
-          disabled={!customW || !customH}
-          className="inline-flex h-[38px] items-center gap-2 border border-[#d7ff47]/45 bg-[#20251a] px-4 text-sm font-semibold text-[#d7ff47] transition hover:border-[#d7ff47] hover:bg-[#292f21] disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-disabled={!customW || !customH}
+          title={!customW || !customH ? "Enter width and height to add a custom preset" : undefined}
+          onClick={(e) => {
+            if (!customW || !customH) {
+              e.preventDefault();
+            }
+          }}
+          className="inline-flex h-[38px] items-center gap-2 border border-[#d7ff47]/45 bg-[#20251a] px-4 text-sm font-semibold text-[#d7ff47] transition hover:border-[#d7ff47] hover:bg-[#292f21] aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
         >
           <Plus className="h-4 w-4" /> Add
         </button>
