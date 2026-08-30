@@ -4,3 +4,6 @@
 ## 2026-08-11 - Custom Selection Buttons using aria-pressed and Tailwind
  **Learning:** When creating custom radio-button-like or toggle buttons (e.g. preset selection grids), template string conditionals for styling cause bulky code and do not semantically reflect their state to screen readers by default.
  **Action:** Always include `aria-pressed={isActive}` (or `aria-current`) on such selection buttons, and use Tailwind's `aria-pressed:` variants instead of conditional JS strings to style the active state.
+## 2026-08-30 - Grouping custom selection buttons for accessibility
+ **Learning:** When building custom radio-style preset selection buttons (e.g., Output resolution, Audio mode), they lack inherent grouping semantically. Without grouping, screen reader users might not understand that the buttons are a mutually exclusive choice or belong to a unified setting.
+ **Action:** Wrap the set of custom selection buttons in a container with `role="group"` and provide a descriptive `aria-label` (like "Output resolution"). This ensures assistive technologies properly announce the group context and boundaries when users navigate to them.
