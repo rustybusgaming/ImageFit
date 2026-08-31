@@ -434,13 +434,19 @@ export default function VideoSquisher({ sourceFiles }: Props) {
 
       <button
         type="button"
-        disabled={isCompressing || isInspecting}
-        onClick={() => void squishVideos()}
-        className="mt-4 inline-flex w-full items-center justify-center gap-2 bg-[#ff7448] px-5 py-3 text-sm font-bold text-[#21100b] transition hover:bg-[#ff9a7b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] disabled:cursor-not-allowed disabled:bg-[#6d392d] disabled:text-[#e8bbae]"
+        aria-disabled={isCompressing || isInspecting}
+        onClick={(e) => {
+          if (isCompressing || isInspecting) {
+            e.preventDefault();
+            return;
+          }
+          void squishVideos();
+        }}
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 bg-[#ff7448] px-5 py-3 text-sm font-bold text-[#21100b] transition hover:bg-[#ff9a7b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] aria-disabled:cursor-not-allowed aria-disabled:bg-[#6d392d] aria-disabled:text-[#e8bbae]"
       >
-        {isCompressing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shrink className="h-4 w-4" />}
+        {isCompressing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Shrink className="h-4 w-4" aria-hidden="true" />}
         {isCompressing ? `Encoding ${Math.round(progress * 100)}%` : `Make ${sourceFiles.length} ${resolution} ${format.toUpperCase()} file${sourceFiles.length === 1 ? "" : "s"}`}
-        {!isCompressing && <Download className="h-4 w-4" />}
+        {!isCompressing && <Download className="h-4 w-4" aria-hidden="true" />}
       </button>
 
       {isCompressing ? (
@@ -449,7 +455,7 @@ export default function VideoSquisher({ sourceFiles }: Props) {
           onClick={cancelEncoding}
           className="mt-2 inline-flex w-full items-center justify-center gap-2 border border-[#ff7448]/60 bg-[#211814] px-5 py-2.5 text-sm font-semibold text-[#ffb39d] transition hover:border-[#ff9a7b] hover:text-[#fff5ee] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512]"
         >
-          <Square className="h-4 w-4" />
+          <Square className="h-4 w-4" aria-hidden="true" />
           Cancel encoding
         </button>
       ) : null}
@@ -467,13 +473,13 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                 <div className="flex items-center justify-between gap-3"><span className="truncate">{entry.file.name}</span><span className="shrink-0 uppercase">{status === "encoding" ? `${Math.round(fileProgress * 100)}%` : status}</span></div>
                 <div className="mt-2 h-1.5 overflow-hidden bg-[#3b251d]"><div className="h-full bg-[#ff7448] transition-[width]" style={{ width: `${fileProgress * 100}%` }} /></div>
                 {queueErrors[entry.key] ? <p className="mt-2 text-[#ffb39d]">{queueErrors[entry.key]}</p> : null}
-                {status === "failed" && !isCompressing ? <button type="button" onClick={() => void squishVideos([entry])} className="mt-2 inline-flex items-center gap-1 font-semibold text-[#d7ff47] hover:text-[#e4ff80]"><RotateCcw className="h-3.5 w-3.5" />Retry this file</button> : null}
+                {status === "failed" && !isCompressing ? <button type="button" onClick={() => void squishVideos([entry])} className="mt-2 inline-flex items-center gap-1 font-semibold text-[#d7ff47] hover:text-[#e4ff80]"><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Retry this file</button> : null}
               </li>
             );
           })}
         </ul>
       ) : null}
-      {Object.keys(queueErrors).length > 0 && !isCompressing ? <button type="button" onClick={clearFailures} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[#e8bbae] hover:text-[#fff5ee]"><X className="h-3.5 w-3.5" />Clear failed items</button> : null}
+      {Object.keys(queueErrors).length > 0 && !isCompressing ? <button type="button" onClick={clearFailures} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[#e8bbae] hover:text-[#fff5ee]"><X className="h-3.5 w-3.5" aria-hidden="true" />Clear failed items</button> : null}
     </section>
   );
 }
