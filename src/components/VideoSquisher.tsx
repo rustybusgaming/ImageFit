@@ -283,7 +283,8 @@ export default function VideoSquisher({ sourceFiles }: Props) {
         </div>
       ) : isInspecting ? <p className="mt-4 text-sm text-[#e8bbae]">Checking source compatibility...</p> : null}
 
-      <div className="mt-4 grid grid-cols-3 gap-2" role="group" aria-label="Upload size limit">
+      <div id="label-upload-limit" className="sr-only">Upload size limit</div>
+      <div className="mt-4 grid grid-cols-3 gap-2" role="group" aria-labelledby="label-upload-limit">
         {DISCORD_PRESETS.map((preset) => (
           <button
             key={preset.id}
@@ -301,12 +302,13 @@ export default function VideoSquisher({ sourceFiles }: Props) {
       </div>
 
       <div className="mt-4">
-        <p className="text-sm font-medium text-[#fff5ee]">Output resolution</p>
-        <div className="mt-2 grid grid-cols-3 gap-2">
+        <p id="label-output-resolution" className="text-sm font-medium text-[#fff5ee]">Output resolution</p>
+        <div className="mt-2 grid grid-cols-3 gap-2" role="group" aria-labelledby="label-output-resolution">
           {RESOLUTION_PRESETS.map((preset) => (
             <button
               key={preset.id}
               type="button"
+              aria-pressed={preset.id === resolution}
               onClick={() => setResolution(preset.id)}
               className={`border px-2 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
                 preset.id === resolution ? "border-[#ff7448] bg-[#2b1913]" : "border-[#ff7448]/20 bg-[#211814] hover:border-[#ff7448]/60"
@@ -321,17 +323,24 @@ export default function VideoSquisher({ sourceFiles }: Props) {
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <div>
-          <p className="text-sm font-medium text-[#fff5ee]">Audio</p>
-          <div className="mt-2 grid gap-2">
+          <p id="label-audio" className="text-sm font-medium text-[#fff5ee]">Audio</p>
+          <div className="mt-2 grid gap-2" role="group" aria-labelledby="label-audio">
             {AUDIO_PRESETS.map((preset) => (
               <button
                 key={preset.id}
                 type="button"
-                onClick={() => setAudio(preset.id)}
-                disabled={format === "gif"}
+                aria-pressed={preset.id === audio}
+                aria-disabled={format === "gif"}
+                onClick={(e) => {
+                  if (format === "gif") {
+                    e.preventDefault();
+                    return;
+                  }
+                  setAudio(preset.id);
+                }}
                 className={`border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
                   preset.id === audio ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
-                } disabled:cursor-not-allowed disabled:opacity-40`}
+                } aria-disabled:cursor-not-allowed aria-disabled:opacity-40`}
               >
                 {preset.label}
               </button>
@@ -339,12 +348,13 @@ export default function VideoSquisher({ sourceFiles }: Props) {
           </div>
         </div>
         <div>
-          <p className="text-sm font-medium text-[#fff5ee]">Frame rate</p>
-          <div className="mt-2 grid grid-cols-3 gap-2">
+          <p id="label-frame-rate" className="text-sm font-medium text-[#fff5ee]">Frame rate</p>
+          <div className="mt-2 grid grid-cols-3 gap-2" role="group" aria-labelledby="label-frame-rate">
             {FRAME_RATES.map((value) => (
               <button
                 key={value}
                 type="button"
+                aria-pressed={value === frameRate}
                 onClick={() => setFrameRate(value)}
                 className={`border px-2 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
                   value === frameRate ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
@@ -354,12 +364,13 @@ export default function VideoSquisher({ sourceFiles }: Props) {
               </button>
             ))}
           </div>
-          <p className="mt-3 text-sm font-medium text-[#fff5ee]">File type</p>
-          <div className="mt-2 grid grid-cols-3 gap-2">
+          <p id="label-file-type" className="mt-3 text-sm font-medium text-[#fff5ee]">File type</p>
+          <div className="mt-2 grid grid-cols-3 gap-2" role="group" aria-labelledby="label-file-type">
             {FORMAT_PRESETS.map((preset) => (
               <button
                 key={preset.id}
                 type="button"
+                aria-pressed={preset.id === format}
                 onClick={() => {
                   setFormat(preset.id);
                   if (preset.id === "gif") {
@@ -382,12 +393,13 @@ export default function VideoSquisher({ sourceFiles }: Props) {
 
       {format !== "gif" ? (
         <div className="mt-4">
-          <p className="text-sm font-medium text-[#fff5ee]">Video codec</p>
-          <div className="mt-2 grid grid-cols-3 gap-2">
+          <p id="label-video-codec" className="text-sm font-medium text-[#fff5ee]">Video codec</p>
+          <div className="mt-2 grid grid-cols-3 gap-2" role="group" aria-labelledby="label-video-codec">
             {CODEC_PRESETS.filter((preset) => preset.format === format).map((preset) => (
               <button
                 key={preset.id}
                 type="button"
+                aria-pressed={preset.id === codec}
                 onClick={() => {
                   setCodec(preset.id);
                   setEngineChoice(null);
@@ -407,8 +419,8 @@ export default function VideoSquisher({ sourceFiles }: Props) {
 
       {isDesktop && format !== "gif" ? (
         <div className="mt-4">
-          <p className="text-sm font-medium text-[#fff5ee]">Encoding engine</p>
-          <div className="mt-2 grid grid-cols-2 gap-2">
+          <p id="label-encoding-engine" className="text-sm font-medium text-[#fff5ee]">Encoding engine</p>
+          <div className="mt-2 grid grid-cols-2 gap-2" role="group" aria-labelledby="label-encoding-engine">
             {ENCODER_PRESETS.map((preset) => {
               const requiredEncoder = preset.id === "software" ? undefined : HARDWARE_ENCODERS[preset.id][codec];
               const supported = preset.id === "software" || Boolean(requiredEncoder && availableEncoders.includes(requiredEncoder));
@@ -416,11 +428,18 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                 <button
                   key={preset.id}
                   type="button"
-                  disabled={!supported}
-                  onClick={() => setEngineChoice(preset.id)}
+                  aria-pressed={encoder === preset.id}
+                  aria-disabled={!supported}
+                  onClick={(e) => {
+                    if (!supported) {
+                      e.preventDefault();
+                      return;
+                    }
+                    setEngineChoice(preset.id);
+                  }}
                   className={`border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
                     encoder === preset.id ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
-                  } disabled:cursor-not-allowed disabled:opacity-40`}
+                  } aria-disabled:cursor-not-allowed aria-disabled:opacity-40`}
                 >
                   <span className="block">{preset.label}</span>
                   <span className="mt-1 block font-normal text-[#aeb2a5]">{preset.description}</span>
@@ -434,9 +453,15 @@ export default function VideoSquisher({ sourceFiles }: Props) {
 
       <button
         type="button"
-        disabled={isCompressing || isInspecting}
-        onClick={() => void squishVideos()}
-        className="mt-4 inline-flex w-full items-center justify-center gap-2 bg-[#ff7448] px-5 py-3 text-sm font-bold text-[#21100b] transition hover:bg-[#ff9a7b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] disabled:cursor-not-allowed disabled:bg-[#6d392d] disabled:text-[#e8bbae]"
+        aria-disabled={isCompressing || isInspecting}
+        onClick={(e) => {
+          if (isCompressing || isInspecting) {
+            e.preventDefault();
+            return;
+          }
+          void squishVideos();
+        }}
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 bg-[#ff7448] px-5 py-3 text-sm font-bold text-[#21100b] transition hover:bg-[#ff9a7b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] aria-disabled:cursor-not-allowed aria-disabled:bg-[#6d392d] aria-disabled:text-[#e8bbae]"
       >
         {isCompressing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shrink className="h-4 w-4" />}
         {isCompressing ? `Encoding ${Math.round(progress * 100)}%` : `Make ${sourceFiles.length} ${resolution} ${format.toUpperCase()} file${sourceFiles.length === 1 ? "" : "s"}`}
