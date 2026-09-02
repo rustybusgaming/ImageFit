@@ -4,3 +4,7 @@
 ## 2026-08-11 - Custom Selection Buttons using aria-pressed and Tailwind
  **Learning:** When creating custom radio-button-like or toggle buttons (e.g. preset selection grids), template string conditionals for styling cause bulky code and do not semantically reflect their state to screen readers by default.
  **Action:** Always include `aria-pressed={isActive}` (or `aria-current`) on such selection buttons, and use Tailwind's `aria-pressed:` variants instead of conditional JS strings to style the active state.
+
+## 2024-11-20 - Custom Radio Group Accessibility Pattern Inconsistency
+**Learning:** We discovered an accessibility issue pattern specific to this app's components: while custom radio group patterns (like the background mode in `ExportPanel.tsx`) correctly utilized `role="group"`, `aria-label`/`aria-labelledby`, and `aria-pressed`, these same patterns were missing entirely from similar radio group elements in `VideoSquisher.tsx` (Resolution, Audio, Frame rate, File type, Video codec, Encoding engine).
+**Action:** When working on custom selection buttons that behave as radio groups, ensure they consistently use `role="group"` on the container with an appropriate accessible name (using `aria-label` or `aria-labelledby`), and use `aria-pressed={isActive}` on the buttons to convey state. Also ensure that `aria-disabled` is used instead of the native `disabled` attribute to maintain keyboard focusability.
