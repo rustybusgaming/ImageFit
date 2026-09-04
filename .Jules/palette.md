@@ -4,3 +4,6 @@
 ## 2026-08-11 - Custom Selection Buttons using aria-pressed and Tailwind
  **Learning:** When creating custom radio-button-like or toggle buttons (e.g. preset selection grids), template string conditionals for styling cause bulky code and do not semantically reflect their state to screen readers by default.
  **Action:** Always include `aria-pressed={isActive}` (or `aria-current`) on such selection buttons, and use Tailwind's `aria-pressed:` variants instead of conditional JS strings to style the active state.
+## 2026-09-04 - Screen reader access to custom radio groups
+**Learning:** Custom UI selection blocks (like the settings groups in VideoSquisher) lack the inherent semantic relationships of native `<fieldset>` and `<input type="radio">` tags. Screen reader users can access individual buttons but have no contextual awareness of what group the option belongs to (e.g. "Audio" or "Frame rate").
+**Action:** When building or refactoring custom selection groups composed of `<button>` elements, always wrap them in a container with `role="group"` and link it to a visible label using `aria-labelledby` (or provide an `aria-label`). Ensure each button uses `aria-pressed` and is styled using `aria-pressed:` Tailwind variants.
