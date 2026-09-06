@@ -298,23 +298,32 @@ export default function VideoSquisher({ sourceFiles }: Props) {
         ))}
       </div>
 
-      <div className="mt-4">
-        <p className="text-sm font-medium text-[#fff5ee]" id="label-output-resolution">Output resolution</p>
-        <div className="mt-2 grid grid-cols-3 gap-2" role="group" aria-labelledby="label-output-resolution">
-          {RESOLUTION_PRESETS.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              onClick={() => setResolution(preset.id)}
-              aria-pressed={preset.id === resolution}
-              className="border px-2 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] border-[#ff7448]/20 bg-[#211814] hover:border-[#ff7448]/60 aria-pressed:border-[#ff7448] aria-pressed:bg-[#2b1913]"
-            >
-              <span className="block text-sm font-semibold text-[#fff5ee]">{preset.label}</span>
-              <span className="mt-1 block text-xs leading-4 text-[#e8bbae]">{preset.description}</span>
-            </button>
-          ))}
+      <fieldset className="mt-4 min-w-0 border-0 p-0">
+        <legend className="text-sm font-medium text-[#fff5ee]">Output resolution</legend>
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          {RESOLUTION_PRESETS.map((preset) => {
+            const isSelected = preset.id === resolution;
+            return (
+              <label key={preset.id} className="block cursor-pointer">
+                <input
+                  type="radio"
+                  name="output-resolution"
+                  value={preset.id}
+                  checked={isSelected}
+                  onChange={() => setResolution(preset.id)}
+                  className="peer sr-only"
+                />
+                <span
+                  className={`block border px-2 py-3 text-left transition peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-[#ff7448] peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[#1d1512] ${isSelected ? "border-[#ff7448] bg-[#2b1913]" : "border-[#ff7448]/20 bg-[#211814] hover:border-[#ff7448]/60"}`}
+                >
+                  <span className="block text-sm font-semibold text-[#fff5ee]">{preset.label}</span>
+                  <span className="mt-1 block text-xs leading-4 text-[#e8bbae]">{preset.description}</span>
+                </span>
+              </label>
+            );
+          })}
         </div>
-      </div>
+      </fieldset>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <div>
