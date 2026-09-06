@@ -301,16 +301,15 @@ export default function VideoSquisher({ sourceFiles }: Props) {
       </div>
 
       <div className="mt-4">
-        <p className="text-sm font-medium text-[#fff5ee]">Output resolution</p>
-        <div className="mt-2 grid grid-cols-3 gap-2">
+        <p id="resolution-label" className="text-sm font-medium text-[#fff5ee]">Output resolution</p>
+        <div className="mt-2 grid grid-cols-3 gap-2" role="group" aria-labelledby="resolution-label">
           {RESOLUTION_PRESETS.map((preset) => (
             <button
               key={preset.id}
               type="button"
               onClick={() => setResolution(preset.id)}
-              className={`border px-2 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
-                preset.id === resolution ? "border-[#ff7448] bg-[#2b1913]" : "border-[#ff7448]/20 bg-[#211814] hover:border-[#ff7448]/60"
-              }`}
+              aria-pressed={preset.id === resolution}
+              className="border px-2 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] border-[#ff7448]/20 bg-[#211814] hover:border-[#ff7448]/60 aria-pressed:border-[#ff7448] aria-pressed:bg-[#2b1913]"
             >
               <span className="block text-sm font-semibold text-[#fff5ee]">{preset.label}</span>
               <span className="mt-1 block text-xs leading-4 text-[#e8bbae]">{preset.description}</span>
@@ -321,17 +320,16 @@ export default function VideoSquisher({ sourceFiles }: Props) {
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <div>
-          <p className="text-sm font-medium text-[#fff5ee]">Audio</p>
-          <div className="mt-2 grid gap-2">
+          <p id="audio-label" className="text-sm font-medium text-[#fff5ee]">Audio</p>
+          <div className="mt-2 grid gap-2" role="group" aria-labelledby="audio-label">
             {AUDIO_PRESETS.map((preset) => (
               <button
                 key={preset.id}
                 type="button"
                 onClick={() => setAudio(preset.id)}
                 disabled={format === "gif"}
-                className={`border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
-                  preset.id === audio ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
-                } disabled:cursor-not-allowed disabled:opacity-40`}
+                aria-pressed={preset.id === audio}
+                className="border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60 aria-pressed:border-[#ff7448] aria-pressed:bg-[#2b1913] aria-pressed:text-[#fff5ee] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {preset.label}
               </button>
@@ -339,23 +337,22 @@ export default function VideoSquisher({ sourceFiles }: Props) {
           </div>
         </div>
         <div>
-          <p className="text-sm font-medium text-[#fff5ee]">Frame rate</p>
-          <div className="mt-2 grid grid-cols-3 gap-2">
+          <p id="framerate-label" className="text-sm font-medium text-[#fff5ee]">Frame rate</p>
+          <div className="mt-2 grid grid-cols-3 gap-2" role="group" aria-labelledby="framerate-label">
             {FRAME_RATES.map((value) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => setFrameRate(value)}
-                className={`border px-2 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
-                  value === frameRate ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
-                }`}
+                aria-pressed={value === frameRate}
+                className="border px-2 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60 aria-pressed:border-[#ff7448] aria-pressed:bg-[#2b1913] aria-pressed:text-[#fff5ee]"
               >
                 {value} fps
               </button>
             ))}
           </div>
-          <p className="mt-3 text-sm font-medium text-[#fff5ee]">File type</p>
-          <div className="mt-2 grid grid-cols-3 gap-2">
+          <p id="filetype-label" className="mt-3 text-sm font-medium text-[#fff5ee]">File type</p>
+          <div className="mt-2 grid grid-cols-3 gap-2" role="group" aria-labelledby="filetype-label">
             {FORMAT_PRESETS.map((preset) => (
               <button
                 key={preset.id}
@@ -369,9 +366,8 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                     setEngineChoice(null);
                   }
                 }}
-                className={`border px-2 py-2 text-xs font-semibold uppercase transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
-                  preset.id === format ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
-                }`}
+                aria-pressed={preset.id === format}
+                className="border px-2 py-2 text-xs font-semibold uppercase transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60 aria-pressed:border-[#ff7448] aria-pressed:bg-[#2b1913] aria-pressed:text-[#fff5ee]"
               >
                 {preset.label}
               </button>
@@ -382,8 +378,8 @@ export default function VideoSquisher({ sourceFiles }: Props) {
 
       {format !== "gif" ? (
         <div className="mt-4">
-          <p className="text-sm font-medium text-[#fff5ee]">Video codec</p>
-          <div className="mt-2 grid grid-cols-3 gap-2">
+          <p id="codec-label" className="text-sm font-medium text-[#fff5ee]">Video codec</p>
+          <div className="mt-2 grid grid-cols-3 gap-2" role="group" aria-labelledby="codec-label">
             {CODEC_PRESETS.filter((preset) => preset.format === format).map((preset) => (
               <button
                 key={preset.id}
@@ -392,9 +388,8 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                   setCodec(preset.id);
                   setEngineChoice(null);
                 }}
-                className={`border px-2 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
-                  preset.id === codec ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
-                }`}
+                aria-pressed={preset.id === codec}
+                className="border px-2 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60 aria-pressed:border-[#ff7448] aria-pressed:bg-[#2b1913] aria-pressed:text-[#fff5ee]"
               >
                 <span className="block text-sm font-semibold">{preset.label}</span>
                 <span className="mt-1 block text-xs leading-4">{preset.description}</span>
@@ -407,8 +402,8 @@ export default function VideoSquisher({ sourceFiles }: Props) {
 
       {isDesktop && format !== "gif" ? (
         <div className="mt-4">
-          <p className="text-sm font-medium text-[#fff5ee]">Encoding engine</p>
-          <div className="mt-2 grid grid-cols-2 gap-2">
+          <p id="engine-label" className="text-sm font-medium text-[#fff5ee]">Encoding engine</p>
+          <div className="mt-2 grid grid-cols-2 gap-2" role="group" aria-labelledby="engine-label">
             {ENCODER_PRESETS.map((preset) => {
               const requiredEncoder = preset.id === "software" ? undefined : HARDWARE_ENCODERS[preset.id][codec];
               const supported = preset.id === "software" || Boolean(requiredEncoder && availableEncoders.includes(requiredEncoder));
@@ -418,9 +413,8 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                   type="button"
                   disabled={!supported}
                   onClick={() => setEngineChoice(preset.id)}
-                  className={`border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
-                    encoder === preset.id ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
-                  } disabled:cursor-not-allowed disabled:opacity-40`}
+                  aria-pressed={encoder === preset.id}
+                  className="border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60 aria-pressed:border-[#ff7448] aria-pressed:bg-[#2b1913] aria-pressed:text-[#fff5ee] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <span className="block">{preset.label}</span>
                   <span className="mt-1 block font-normal text-[#aeb2a5]">{preset.description}</span>
