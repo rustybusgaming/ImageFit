@@ -326,10 +326,16 @@ export default function VideoSquisher({ sourceFiles }: Props) {
               <button
                 key={preset.id}
                 type="button"
-                onClick={() => setAudio(preset.id)}
-                disabled={format === "gif"}
+                onClick={(e) => {
+                  if (format === "gif") {
+                    e.preventDefault();
+                    return;
+                  }
+                  setAudio(preset.id);
+                }}
+                aria-disabled={format === "gif"}
                 aria-pressed={preset.id === audio}
-                className="border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60 aria-pressed:border-[#ff7448] aria-pressed:bg-[#2b1913] aria-pressed:text-[#fff5ee] disabled:cursor-not-allowed disabled:opacity-40"
+                className="border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60 aria-pressed:border-[#ff7448] aria-pressed:bg-[#2b1913] aria-pressed:text-[#fff5ee] aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
               >
                 {preset.label}
               </button>
@@ -411,10 +417,16 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                 <button
                   key={preset.id}
                   type="button"
-                  disabled={!supported}
-                  onClick={() => setEngineChoice(preset.id)}
+                  onClick={(e) => {
+                    if (!supported) {
+                      e.preventDefault();
+                      return;
+                    }
+                    setEngineChoice(preset.id);
+                  }}
+                  aria-disabled={!supported}
                   aria-pressed={encoder === preset.id}
-                  className="border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60 aria-pressed:border-[#ff7448] aria-pressed:bg-[#2b1913] aria-pressed:text-[#fff5ee] disabled:cursor-not-allowed disabled:opacity-40"
+                  className="border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60 aria-pressed:border-[#ff7448] aria-pressed:bg-[#2b1913] aria-pressed:text-[#fff5ee] aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
                 >
                   <span className="block">{preset.label}</span>
                   <span className="mt-1 block font-normal text-[#aeb2a5]">{preset.description}</span>
