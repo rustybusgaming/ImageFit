@@ -155,9 +155,15 @@ export default function DesktopControls({ onOpenMedia }: Props) {
             ) : (
               <button
                 type="button"
-                onClick={() => void checkForUpdates()}
-                disabled={update?.state === "checking" || update?.state === "downloading"}
-                className="inline-flex shrink-0 items-center gap-1.5 border border-white/15 px-2 py-1 text-xs font-semibold text-[#e8eadf] transition hover:border-[#d7ff47] hover:text-[#d7ff47] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={(e) => {
+                  if (update?.state === "checking" || update?.state === "downloading") {
+                    e.preventDefault();
+                    return;
+                  }
+                  void checkForUpdates();
+                }}
+                aria-disabled={update?.state === "checking" || update?.state === "downloading"}
+                className="inline-flex shrink-0 items-center gap-1.5 border border-white/15 px-2 py-1 text-xs font-semibold text-[#e8eadf] transition hover:border-[#d7ff47] hover:text-[#d7ff47] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${update?.state === "checking" || update?.state === "downloading" ? "animate-spin" : ""}`} />
                 Check for updates
