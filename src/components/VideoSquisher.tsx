@@ -467,13 +467,13 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                 <div className="flex items-center justify-between gap-3"><span className="truncate">{entry.file.name}</span><span className="shrink-0 uppercase">{status === "encoding" ? `${Math.round(fileProgress * 100)}%` : status}</span></div>
                 <div className="mt-2 h-1.5 overflow-hidden bg-[#3b251d]"><div className="h-full bg-[#ff7448] transition-[width]" style={{ width: `${fileProgress * 100}%` }} /></div>
                 {queueErrors[entry.key] ? <p className="mt-2 text-[#ffb39d]">{queueErrors[entry.key]}</p> : null}
-                {status === "failed" && !isCompressing ? <button type="button" onClick={() => void squishVideos([entry])} className="mt-2 inline-flex items-center gap-1 font-semibold text-[#d7ff47] hover:text-[#e4ff80]"><RotateCcw className="h-3.5 w-3.5" />Retry this file</button> : null}
+                {status === "failed" && !isCompressing ? <button type="button" onClick={() => void squishVideos([entry])} className="mt-2 inline-flex items-center gap-1 font-semibold text-[#d7ff47] hover:text-[#e4ff80]"><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Retry this file</button> : null}
               </li>
             );
           })}
         </ul>
       ) : null}
-      {Object.keys(queueErrors).length > 0 && !isCompressing ? <button type="button" onClick={clearFailures} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[#e8bbae] hover:text-[#fff5ee]"><X className="h-3.5 w-3.5" />Clear failed items</button> : null}
+      {Object.keys(queueErrors).length > 0 && !isCompressing ? <button type="button" onClick={clearFailures} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[#e8bbae] hover:text-[#fff5ee]"><X className="h-3.5 w-3.5" aria-hidden="true" />Clear failed items</button> : null}
     </section>
   );
 }
