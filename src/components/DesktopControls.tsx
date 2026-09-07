@@ -70,7 +70,7 @@ export default function DesktopControls({ onOpenMedia }: Props) {
         className="inline-flex items-center justify-center gap-2 border border-[#d7ff47]/45 bg-[#20251a] px-3 py-2 text-sm font-semibold text-[#d7ff47] transition hover:border-[#d7ff47] hover:bg-[#292f21] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] focus-visible:ring-offset-2 focus-visible:ring-offset-[#151714]"
         aria-expanded={isOpen}
       >
-        <MonitorCog className="h-4 w-4" />
+        <MonitorCog className="h-4 w-4" aria-hidden="true" />
         Desktop
       </button>
 
@@ -82,7 +82,7 @@ export default function DesktopControls({ onOpenMedia }: Props) {
               <h2 className="mt-1 text-lg font-semibold text-[#f4f4ed]">Native workspace</h2>
             </div>
             <button type="button" onClick={onOpenMedia} className="inline-flex items-center gap-2 border border-white/15 bg-[#20231e] px-3 py-2 text-xs font-semibold text-[#e8eadf] transition hover:border-[#d7ff47] hover:text-[#d7ff47] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47]">
-              <Upload className="h-4 w-4" />
+              <Upload className="h-4 w-4" aria-hidden="true" />
               Open media
             </button>
           </div>
@@ -90,14 +90,14 @@ export default function DesktopControls({ onOpenMedia }: Props) {
           <div className="mt-4 border border-white/10 bg-[#1b1e1a] p-3">
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2">
-                <FolderOpen className="h-4 w-4 shrink-0 text-[#ff9a7b]" />
+                <FolderOpen className="h-4 w-4 shrink-0 text-[#ff9a7b]" aria-hidden="true" />
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-[#f0f1e9]">Output folder</p>
                   <p className="truncate text-xs text-[#aeb2a5]" title={outputDirectory}>{outputDirectory || "Loading..."}</p>
                 </div>
               </div>
               <button type="button" onClick={() => void chooseOutputDirectory()} className="grid h-8 w-8 shrink-0 place-items-center border border-white/15 text-[#d7ff47] transition hover:border-[#d7ff47] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47]" aria-label="Choose output folder" title="Choose output folder">
-                <FolderOpen className="h-4 w-4" />
+                <FolderOpen className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -165,7 +165,7 @@ export default function DesktopControls({ onOpenMedia }: Props) {
                 aria-disabled={update?.state === "checking" || update?.state === "downloading"}
                 className="inline-flex shrink-0 items-center gap-1.5 border border-white/15 px-2 py-1 text-xs font-semibold text-[#e8eadf] transition hover:border-[#d7ff47] hover:text-[#d7ff47] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ff47] aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
               >
-                <RefreshCw className={`h-3.5 w-3.5 ${update?.state === "checking" || update?.state === "downloading" ? "animate-spin" : ""}`} />
+                <RefreshCw className={`h-3.5 w-3.5 ${update?.state === "checking" || update?.state === "downloading" ? "animate-spin" : ""}`} aria-hidden="true" />
                 Check for updates
               </button>
             )}

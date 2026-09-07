@@ -202,7 +202,7 @@ export default function App() {
                           <span className="truncate text-sm font-medium text-[#f0f1e9]">{file.name}</span>
                         </button>
                         <button type="button" onClick={() => removeImage(index)} className="grid h-7 w-7 shrink-0 place-items-center text-[#aeb2a5] transition hover:bg-[#3a201a] hover:text-[#ff9a7b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448]" aria-label={`Remove ${file.name} from the image queue`}>
-                          <X className="h-4 w-4" />
+                          <X className="h-4 w-4" aria-hidden="true" />
                         </button>
                       </div>
                     ))}
