@@ -290,9 +290,7 @@ export default function VideoSquisher({ sourceFiles }: Props) {
             type="button"
             onClick={() => setPresetId(preset.id)}
             aria-pressed={preset.id === presetId}
-            className={`border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
-              preset.id === presetId ? "border-[#ff7448] bg-[#2b1913] shadow-[3px_3px_0_#ff7448]" : "border-[#ff7448]/20 bg-[#211814] hover:border-[#ff7448]/60"
-            }`}
+            className="border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] border-[#ff7448]/20 bg-[#211814] hover:border-[#ff7448]/60 aria-pressed:border-[#ff7448] aria-pressed:bg-[#2b1913] aria-pressed:shadow-[3px_3px_0_#ff7448]"
           >
             <span className="block text-sm font-semibold text-[#fff5ee]">{preset.label}</span>
             <span className="mt-1 block text-xs leading-4 text-[#e8bbae]">Upload limit</span>
@@ -308,9 +306,8 @@ export default function VideoSquisher({ sourceFiles }: Props) {
               key={preset.id}
               type="button"
               onClick={() => setResolution(preset.id)}
-              className={`border px-2 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
-                preset.id === resolution ? "border-[#ff7448] bg-[#2b1913]" : "border-[#ff7448]/20 bg-[#211814] hover:border-[#ff7448]/60"
-              }`}
+              aria-pressed={preset.id === resolution}
+              className="border px-2 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] border-[#ff7448]/20 bg-[#211814] hover:border-[#ff7448]/60 aria-pressed:border-[#ff7448] aria-pressed:bg-[#2b1913]"
             >
               <span className="block text-sm font-semibold text-[#fff5ee]">{preset.label}</span>
               <span className="mt-1 block text-xs leading-4 text-[#e8bbae]">{preset.description}</span>
@@ -329,9 +326,8 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                 type="button"
                 onClick={() => setAudio(preset.id)}
                 disabled={format === "gif"}
-                className={`border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
-                  preset.id === audio ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
-                } disabled:cursor-not-allowed disabled:opacity-40`}
+                aria-pressed={preset.id === audio}
+                className="border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60 aria-pressed:border-[#ff7448] aria-pressed:bg-[#2b1913] aria-pressed:text-[#fff5ee] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {preset.label}
               </button>
@@ -346,9 +342,8 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                 key={value}
                 type="button"
                 onClick={() => setFrameRate(value)}
-                className={`border px-2 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
-                  value === frameRate ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
-                }`}
+                aria-pressed={value === frameRate}
+                className="border px-2 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60 aria-pressed:border-[#ff7448] aria-pressed:bg-[#2b1913] aria-pressed:text-[#fff5ee]"
               >
                 {value} fps
               </button>
@@ -369,9 +364,8 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                     setEngineChoice(null);
                   }
                 }}
-                className={`border px-2 py-2 text-xs font-semibold uppercase transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
-                  preset.id === format ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
-                }`}
+                aria-pressed={preset.id === format}
+                className="border px-2 py-2 text-xs font-semibold uppercase transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60 aria-pressed:border-[#ff7448] aria-pressed:bg-[#2b1913] aria-pressed:text-[#fff5ee]"
               >
                 {preset.label}
               </button>
@@ -392,9 +386,8 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                   setCodec(preset.id);
                   setEngineChoice(null);
                 }}
-                className={`border px-2 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
-                  preset.id === codec ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
-                }`}
+                aria-pressed={preset.id === codec}
+                className="border px-2 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60 aria-pressed:border-[#ff7448] aria-pressed:bg-[#2b1913] aria-pressed:text-[#fff5ee]"
               >
                 <span className="block text-sm font-semibold">{preset.label}</span>
                 <span className="mt-1 block text-xs leading-4">{preset.description}</span>
@@ -418,9 +411,8 @@ export default function VideoSquisher({ sourceFiles }: Props) {
                   type="button"
                   disabled={!supported}
                   onClick={() => setEngineChoice(preset.id)}
-                  className={`border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
-                    encoder === preset.id ? "border-[#ff7448] bg-[#2b1913] text-[#fff5ee]" : "border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60"
-                  } disabled:cursor-not-allowed disabled:opacity-40`}
+                  aria-pressed={encoder === preset.id}
+                  className="border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] border-[#ff7448]/20 bg-[#211814] text-[#e8bbae] hover:border-[#ff7448]/60 aria-pressed:border-[#ff7448] aria-pressed:bg-[#2b1913] aria-pressed:text-[#fff5ee] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <span className="block">{preset.label}</span>
                   <span className="mt-1 block font-normal text-[#aeb2a5]">{preset.description}</span>
