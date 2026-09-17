@@ -4,3 +4,7 @@
 ## 2026-08-11 - Custom Selection Buttons using aria-pressed and Tailwind
  **Learning:** When creating custom radio-button-like or toggle buttons (e.g. preset selection grids), template string conditionals for styling cause bulky code and do not semantically reflect their state to screen readers by default.
  **Action:** Always include `aria-pressed={isActive}` (or `aria-current`) on such selection buttons, and use Tailwind's `aria-pressed:` variants instead of conditional JS strings to style the active state.
+
+## 2024-05-18 - Replacing Native `disabled` with `aria-disabled` on Submit Buttons
+**Learning:** When using `aria-disabled` to replace a native `disabled` attribute on a `<button type="submit">` element within a form, it is crucial to explicitly call `e.preventDefault()` in the button's `onClick` handler when the disabled condition is true. Without this, the form can still be submitted by keyboard users or screen readers, bypassing validation.
+**Action:** Always add an `onClick` handler with `e.preventDefault()` conditionally when applying `aria-disabled` to a submit button inside a form.
