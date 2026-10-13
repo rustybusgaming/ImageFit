@@ -81,6 +81,7 @@
         "dmg",
         "zip"
       ],
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
       "category": "public.app-category.graphics-design",
       "icon": "build/icon.png",
       "hardenedRuntime": true,
