@@ -11,7 +11,15 @@ ipcRenderer.on("desktop:video-progress", (_event, { jobId, progress }) => {
   progressCallbacks.get(jobId)?.(progress);
 });
 
+// Paths can arrive before React has subscribed (a file that launched the app, or one opened
+// while the window is still loading), so they are held until the first subscriber appears.
+let pendingOpenPaths = [];
+
 ipcRenderer.on("desktop:open-paths", (_event, paths) => {
+  if (openFileCallbacks.size === 0) {
+    pendingOpenPaths.push(...paths);
+    return;
+  }
   for (const callback of openFileCallbacks) callback(paths);
 });
 
@@ -29,6 +37,11 @@ contextBridge.exposeInMainWorld("imageFitDesktop", {
   readMediaFiles: (paths) => ipcRenderer.invoke("desktop:read-media-files", paths),
   onOpenPaths: (callback) => {
     openFileCallbacks.add(callback);
+    if (pendingOpenPaths.length > 0) {
+      const paths = pendingOpenPaths;
+      pendingOpenPaths = [];
+      callback(paths);
+    }
     return () => openFileCallbacks.delete(callback);
   },
   onUpdateStatus: (callback) => {

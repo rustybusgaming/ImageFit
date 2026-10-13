@@ -9,6 +9,7 @@
  */
 
 interface HeifImage {
+  free(): void;
   get_width(): number;
   get_height(): number;
   display(image: ImageData, callback: (result: ImageData | null) => void): void;
@@ -27,9 +28,14 @@ function loadDecoder(): Promise<HeifDecoderModule> {
   return decoderModule;
 }
 
+let decoder: InstanceType<HeifDecoderModule["HeifDecoder"]> | null = null;
+
 export async function decodeHeic(file: File): Promise<Blob> {
   const { HeifDecoder } = await loadDecoder();
-  const images = new HeifDecoder().decode(new Uint8Array(await file.arrayBuffer()));
+  // One decoder is reused because it only frees the previous file's context (a full copy of
+  // that file on the wasm heap) when it decodes the next one; a fresh decoder per file leaks it.
+  decoder ??= new HeifDecoder();
+  const images = decoder.decode(new Uint8Array(await file.arrayBuffer()));
 
   // A HEIC can hold a burst or a Live Photo; the primary image is the one to work with.
   const image = images[0];
@@ -39,12 +45,17 @@ export async function decodeHeic(file: File): Promise<Blob> {
   const height = image.get_height();
   const imageData = new ImageData(width, height);
 
-  await new Promise<void>((resolve, reject) => {
-    image.display(imageData, (result) => {
-      if (result) resolve();
-      else reject(new Error("ImageFit could not decode this HEIC file."));
+  try {
+    await new Promise<void>((resolve, reject) => {
+      image.display(imageData, (result) => {
+        if (result) resolve();
+        else reject(new Error("ImageFit could not decode this HEIC file."));
+      });
     });
-  });
+  } finally {
+    // Decoded images live on the wasm heap, which is not garbage collected.
+    for (const decoded of images) decoded.free();
+  }
 
   const canvas = typeof OffscreenCanvas !== "undefined"
     ? new OffscreenCanvas(width, height)

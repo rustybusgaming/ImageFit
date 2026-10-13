@@ -2,7 +2,13 @@ import { FFmpeg, FFFSType } from "@ffmpeg/ffmpeg";
 import coreURL from "@ffmpeg/core?url";
 import wasmURL from "@ffmpeg/core/wasm?url";
 
+/** The instance being loaded or already loaded, kept so a cancel can terminate it. */
 let ffmpeg: FFmpeg | null = null;
+/**
+ * Shared load. Two callers arriving together (an image conversion and a video encode, or two
+ * quick selections) would otherwise each load their own ~30 MB wasm core.
+ */
+let ffmpegReady: Promise<FFmpeg> | null = null;
 
 export type VideoResolution = "1080p" | "720p" | "480p";
 export type VideoAudioMode = "keep" | "reduced" | "mute";
@@ -116,29 +122,33 @@ function getErrorMessage(error: unknown): string {
 }
 
 /** Shared with the animated-image encoder so only one wasm core is ever loaded. */
-export async function getFFmpeg(): Promise<FFmpeg> {
-  if (ffmpeg) {
-    return ffmpeg;
+export function getFFmpeg(): Promise<FFmpeg> {
+  if (ffmpegReady) {
+    return ffmpegReady;
   }
 
   const instance = new FFmpeg();
-
-  try {
-    await instance.load({
-      coreURL,
-      wasmURL,
-    });
-  } catch (error) {
-    throw new Error(getErrorMessage(error), { cause: error });
-  }
+  const ready = instance.load({ coreURL, wasmURL }).then(
+    () => instance,
+    (error: unknown) => {
+      // Let the next caller retry rather than inheriting this failure forever.
+      if (ffmpegReady === ready) {
+        ffmpegReady = null;
+        ffmpeg = null;
+      }
+      throw new Error(getErrorMessage(error), { cause: error });
+    }
+  );
 
   ffmpeg = instance;
-  return instance;
+  ffmpegReady = ready;
+  return ready;
 }
 
 export function cancelVideoEncoding(): void {
   ffmpeg?.terminate();
   ffmpeg = null;
+  ffmpegReady = null;
 }
 
 function getVideoMetadata(file: File): Promise<{ duration: number; width: number; height: number }> {

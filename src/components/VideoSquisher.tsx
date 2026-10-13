@@ -133,7 +133,9 @@ export default function VideoSquisher({ sourceFiles }: Props) {
   const cancellationRef = useRef(false);
   const selectedPreset = DISCORD_PRESETS.find((preset) => preset.id === presetId) ?? DISCORD_PRESETS[0];
   const isDesktop = isDesktopApp();
-  const encoder: VideoEncoderEngine = engineChoice ?? (isDesktop ? pickFastestEngine(codec, availableEncoders) : "software");
+  // GIF output never touches a video encoder, so it must not claim (or be named after) one.
+  const encoder: VideoEncoderEngine =
+    format === "gif" ? "software" : engineChoice ?? (isDesktop ? pickFastestEngine(codec, availableEncoders) : "software");
   // Two dropped files can share a name, so the queue is tracked by position rather than by filename.
   const queue = useMemo<QueueEntry[]>(() => sourceFiles.map((file, index) => ({ key: `${index}-${file.name}`, file })), [sourceFiles]);
 
@@ -153,6 +155,8 @@ export default function VideoSquisher({ sourceFiles }: Props) {
 
       setIsInspecting(true);
       setCompatibility(null);
+      setError(null);
+      setResult(null);
       setQueueStatus(Object.fromEntries(queue.map((entry) => [entry.key, "waiting"])));
       setQueueProgress(Object.fromEntries(queue.map((entry) => [entry.key, 0])));
       setQueueErrors({});

@@ -13,5 +13,7 @@ export async function downloadBlob(blob: Blob, filename: string): Promise<void> 
   link.download = filename;
   link.click();
 
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  // Revoking straight after click() can abort the download in Firefox and Safari, which read
+  // the URL asynchronously.
+  window.setTimeout(() => URL.revokeObjectURL(url), 40_000);
 }

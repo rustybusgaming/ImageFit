@@ -37,6 +37,8 @@ export function useImage() {
     setLoadError(null);
 
     if (kind === "video") {
+      // An image conversion this replaces will no longer clear the flag itself.
+      setIsPreparing(false);
       show(file, file);
       return;
     }
