@@ -42,6 +42,8 @@
           "webp",
           "svg",
           "avif",
+          "heic",
+          "heif",
           "bmp",
           "ico",
           "tif",

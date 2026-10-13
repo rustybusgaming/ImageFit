@@ -10,6 +10,7 @@ import ImageSquisher from "./components/ImageSquisher";
 import VideoSquisher from "./components/VideoSquisher";
 import { useImage } from "./hooks/useImage";
 import { classifyMedia } from "./lib/imageFormats";
+import { rememberDesktopFilePath } from "./lib/desktopVideoProcessor";
 import type { ImageTransform } from "./lib/imageProcessor";
 
 export default function App() {
@@ -74,11 +75,14 @@ export default function App() {
     }
   }
 
-  function loadDesktopFiles(files: Array<{ name: string; bytes: Uint8Array }>) {
+  function loadDesktopFiles(files: Array<{ name: string; path: string; bytes: Uint8Array }>) {
     handleUpload(files.map((file) => {
       const bytes = new Uint8Array(file.bytes.byteLength);
       bytes.set(file.bytes);
-      return new File([bytes.buffer], file.name, { type: getMediaType(file.name) });
+      const rebuilt = new File([bytes.buffer], file.name, { type: getMediaType(file.name) });
+      // The native encoder reads the source from disk, which a rebuilt File cannot point to.
+      rememberDesktopFilePath(rebuilt, file.path);
+      return rebuilt;
     }));
   }
 
@@ -282,7 +286,7 @@ function getMediaType(filename: string): string {
   return ({
     png: "image/png", apng: "image/apng", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif",
     webp: "image/webp", svg: "image/svg+xml", avif: "image/avif", bmp: "image/bmp", ico: "image/x-icon",
-    tif: "image/tiff", tiff: "image/tiff", psd: "image/vnd.adobe.photoshop", qoi: "image/qoi",
+    jfif: "image/jpeg", heic: "image/heic", heif: "image/heif", tif: "image/tiff", tiff: "image/tiff", psd: "image/vnd.adobe.photoshop", qoi: "image/qoi",
     tga: "image/x-targa", targa: "image/x-targa", dds: "image/vnd-ms.dds", jp2: "image/jp2", j2k: "image/j2k",
     mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime", m4v: "video/x-m4v", avi: "video/x-msvideo", mkv: "video/x-matroska",
   }[extension ?? ""] ?? "application/octet-stream");

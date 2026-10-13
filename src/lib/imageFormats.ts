@@ -109,6 +109,16 @@ function isAnimatedPng(bytes: Uint8Array): boolean {
 }
 
 /**
+ * Animated WebP is an extended (`VP8X`) file with the animation flag set. The flag is read
+ * directly because the `ANIM` chunk follows any ICC profile, which can push it well past the
+ * first few hundred bytes.
+ */
+function isAnimatedWebp(bytes: Uint8Array): boolean {
+  if (startsWith(bytes, [0x56, 0x50, 0x38, 0x58], 12)) return (bytes[20] & 0x02) !== 0;
+  return indexOfAscii(bytes, "ANIM", 512);
+}
+
+/**
  * A static GIF carries at most one Graphic Control Extension; an animated one carries a
  * block per frame. Counting two is enough to answer the question without a full parse.
  */
@@ -131,7 +141,7 @@ function readKind(bytes: Uint8Array): ImageKind {
     return isAnimatedPng(bytes) ? "apng" : "png";
   }
   if (startsWith(bytes, [0x52, 0x49, 0x46, 0x46]) && startsWith(bytes, [0x57, 0x45, 0x42, 0x50], 8)) {
-    return indexOfAscii(bytes, "ANIM", 512) ? "animated-webp" : "webp";
+    return isAnimatedWebp(bytes) ? "animated-webp" : "webp";
   }
   if (startsWith(bytes, [0xff, 0xd8, 0xff])) return "jpeg";
   if (startsWith(bytes, [0x42, 0x4d])) return "bmp";

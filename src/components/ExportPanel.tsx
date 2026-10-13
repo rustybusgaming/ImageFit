@@ -30,11 +30,19 @@ export default function ExportPanel({ image, platforms, transform }: Props) {
   // Load natural dimensions of the source image
   useEffect(() => {
     if (!image) return;
+    let cancelled = false;
     const img = new Image();
     img.onload = () => {
-      setOriginalDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+      // A slower load for a previous image must not overwrite the current one's size.
+      if (!cancelled && img.naturalWidth > 0 && img.naturalHeight > 0) {
+        setOriginalDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+      }
     };
     img.src = image;
+    return () => {
+      cancelled = true;
+      img.onload = null;
+    };
   }, [image]);
 
 const originalPreset: PlatformPreset | null = originalDimensions

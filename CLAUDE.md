@@ -161,7 +161,8 @@ guarded by a token so a slow conversion cannot overwrite a newer selection.
 
 HEIC goes through `heicDecoder.ts` (libheif-js), which is imported lazily because it carries
 ~1.4 MB of embedded wasm; Vite emits it as its own chunk. Everything else FFmpeg can read goes
-through `convertToBrowserImage`.
+through `convertToBrowserImage`. SVG is rasterised to PNG there too, even though an `<img>` can
+show it: `createImageBitmap` — which both render paths decode with — rejects SVG blobs.
 
 ### Animated and uncommon image formats
 

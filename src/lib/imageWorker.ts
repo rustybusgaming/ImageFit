@@ -23,20 +23,60 @@ const worker = self as unknown as WorkerScope;
  * Decoding is the expensive part of a batch export, so the most recent source is cached.
  * Only one is held at a time: sources are full-resolution uploads and holding several would
  * cost more memory than the decode it saves.
+ *
+ * The decode promise is cached rather than the bitmap, so jobs that arrive while it is still
+ * running share it instead of each decoding again. A bitmap that has been replaced is closed
+ * only once the jobs still drawing from it have finished.
  */
-let cached: { key: string; bitmap: ImageBitmap } | null = null;
+interface CachedSource {
+  key: string;
+  bitmap: Promise<ImageBitmap>;
+  users: number;
+  retired: boolean;
+}
 
-async function getBitmap(key: string, source: Blob): Promise<ImageBitmap> {
-  if (cached?.key === key) return cached.bitmap;
+let cached: CachedSource | null = null;
 
-  const bitmap = await createImageBitmap(source);
-  cached?.bitmap.close();
-  cached = { key, bitmap };
-  return bitmap;
+function release(entry: CachedSource): void {
+  void entry.bitmap.then((bitmap) => bitmap.close(), () => undefined);
+}
+
+function acquire(key: string, source: Blob): CachedSource {
+  if (cached?.key === key) {
+    cached.users += 1;
+    return cached;
+  }
+
+  if (cached) {
+    cached.retired = true;
+    if (cached.users === 0) release(cached);
+  }
+
+  const entry: CachedSource = { key, bitmap: createImageBitmap(source), users: 1, retired: false };
+  // A failed decode must not stay cached, or every later job for this source would fail too.
+  entry.bitmap.catch(() => {
+    if (cached === entry) cached = null;
+  });
+  cached = entry;
+  return entry;
+}
+
+function relinquish(entry: CachedSource): void {
+  entry.users -= 1;
+  if (entry.retired && entry.users === 0) release(entry);
 }
 
 async function handle(request: RenderRequest): Promise<Blob> {
-  const source = await getBitmap(request.sourceKey, request.source);
+  const entry = acquire(request.sourceKey, request.source);
+
+  try {
+    return await render(request, await entry.bitmap);
+  } finally {
+    relinquish(entry);
+  }
+}
+
+async function render(request: RenderRequest, source: ImageBitmap): Promise<Blob> {
   const effect = request.job.settings.effect;
 
   // Prefer the GPU colour pass; fall back to the equivalent ctx.filter string when it is

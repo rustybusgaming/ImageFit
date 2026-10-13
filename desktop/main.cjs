@@ -24,13 +24,19 @@ app.commandLine.appendSwitch("enable-zero-copy");
 app.commandLine.appendSwitch("ignore-gpu-blocklist");
 
 const MEDIA_EXTENSIONS = new Set([
-  ".png", ".apng", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif",
+  ".png", ".apng", ".jpg", ".jpeg", ".jfif", ".gif", ".webp", ".svg", ".avif", ".heic", ".heif",
   ".bmp", ".ico", ".tif", ".tiff", ".psd", ".qoi", ".tga", ".targa", ".dds", ".jp2", ".j2k",
   ".mp4", ".webm", ".mov", ".m4v", ".avi", ".mkv",
 ]);
 let mainWindow = null;
 let pendingOpenPaths = [];
 let updateReady = false;
+// Newest version GitHub reported, so an electron-updater miss (no asset for this platform,
+// or not packaged) does not overwrite "available" with "you're on the latest version".
+let latestGithubVersion = null;
+let availableEncodersCache = null;
+// jobId -> { process, cancelled }. The entry outlives each FFmpeg process so a cancel that
+// lands between size-retry attempts still stops the job.
 const activeEncodingJobs = new Map();
 
 function getSettingsPath() {
@@ -58,8 +64,16 @@ function isMediaPath(filePath) {
   return MEDIA_EXTENSIONS.has(path.extname(filePath).toLowerCase());
 }
 
+function isReadableMediaPath(filePath) {
+  try {
+    return isMediaPath(filePath) && fs.statSync(filePath).isFile();
+  } catch {
+    return false;
+  }
+}
+
 function sendOpenPaths(paths) {
-  const mediaPaths = paths.filter(isMediaPath);
+  const mediaPaths = paths.filter(isReadableMediaPath);
   if (mediaPaths.length === 0) return;
 
   if (mainWindow?.webContents) {
@@ -198,7 +212,13 @@ function getAudioArgs(format, audio, audioBitrate) {
   return ["-c:a", "aac", "-b:a", bitrate];
 }
 
+// Probed once: spawnSync blocks the main process, and the answer cannot change while running.
 function getAvailableVideoEncoders() {
+  availableEncodersCache ??= probeVideoEncoders();
+  return availableEncodersCache;
+}
+
+function probeVideoEncoders() {
   const ffmpegPath = getFfmpegPath();
   if (!ffmpegPath) return [];
 
@@ -235,12 +255,39 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(() => {
-  app.on("open-file", (event, filePath) => {
-    event.preventDefault();
-    sendOpenPaths([filePath]);
-  });
+function sendUpdateStatus(status) {
+  mainWindow?.webContents.send("desktop:update-status", status);
+}
 
+/** electron-updater found nothing to install; GitHub may still know of a newer release. */
+function reportNoInstallableUpdate() {
+  if (latestGithubVersion && isNewerVersion(latestGithubVersion, app.getVersion())) {
+    sendUpdateStatus({ state: "available", version: latestGithubVersion });
+  } else {
+    sendUpdateStatus({ state: "unavailable" });
+  }
+}
+
+function checkForInstallableUpdate() {
+  // The failure is also emitted as an "error" event, which is what reports it to the UI.
+  autoUpdater.checkForUpdatesAndNotify().catch(() => undefined);
+}
+
+/** Media paths passed on the command line, which is how Windows and Linux open associated files. */
+function getLaunchPaths(argv) {
+  return argv.slice(app.isPackaged ? 1 : 2).filter((arg) => !arg.startsWith("-"));
+}
+
+// macOS delivers the file that launched the app before "ready", so this has to be registered
+// up front; anything that arrives before the window exists is queued in pendingOpenPaths.
+app.on("open-file", (event, filePath) => {
+  event.preventDefault();
+  sendOpenPaths([filePath]);
+  // Opening a file from Finder after the last window was closed should bring a window back.
+  if (app.isReady() && !mainWindow) createWindow();
+});
+
+function onReady() {
   ipcMain.handle("desktop:video-encode", async (event, payload) => {
     assertVideoPayload(payload);
     const ffmpegPath = getFfmpegPath();
@@ -290,8 +337,13 @@ app.whenReady().then(() => {
 
     function runFfmpeg(args) {
       return new Promise((resolve, reject) => {
+        if (job.cancelled) {
+          reject(new Error("Encoding cancelled."));
+          return;
+        }
+
         const ffmpegProcess = spawn(ffmpegPath, args, { windowsHide: true });
-        activeEncodingJobs.set(payload.jobId, ffmpegProcess);
+        job.process = ffmpegProcess;
         let diagnostic = "";
         ffmpegProcess.stderr.on("data", (chunk) => {
           const message = chunk.toString();
@@ -303,7 +355,7 @@ app.whenReady().then(() => {
         });
         ffmpegProcess.on("error", (error) => reject(error));
         ffmpegProcess.on("close", (code, signal) => {
-          if (signal || ffmpegProcess.killed) {
+          if (signal || ffmpegProcess.killed || job.cancelled) {
             reject(new Error("Encoding cancelled."));
           } else if (code === 0) {
             resolve();
@@ -317,23 +369,29 @@ app.whenReady().then(() => {
     // The encoder only approximates the requested bitrate, so an overshoot is retried at a
     // bitrate corrected from the size actually produced rather than being thrown away.
     let videoBitrate = plan.videoBitrate;
+    const job = { process: null, cancelled: false };
+    activeEncodingJobs.set(payload.jobId, job);
 
-    for (let attempt = 0; attempt < MAX_SIZE_ATTEMPTS; attempt += 1) {
-      try {
-        await runFfmpeg(buildArgs(videoBitrate));
-      } catch (error) {
-        removeFile(outputPath);
-        throw error;
-      } finally {
-        activeEncodingJobs.delete(payload.jobId);
+    try {
+      for (let attempt = 0; attempt < MAX_SIZE_ATTEMPTS; attempt += 1) {
+        try {
+          await runFfmpeg(buildArgs(videoBitrate));
+        } catch (error) {
+          removeFile(outputPath);
+          throw error;
+        } finally {
+          job.process = null;
+        }
+
+        const size = fs.statSync(outputPath).size;
+        if (size <= payload.maxBytes) return { outputPath, size };
+
+        const nextBitrate = payload.format === "gif" ? null : retargetVideoBitrate(videoBitrate, size, payload.maxBytes);
+        if (nextBitrate === null) break;
+        videoBitrate = nextBitrate;
       }
-
-      const size = fs.statSync(outputPath).size;
-      if (size <= payload.maxBytes) return { outputPath, size };
-
-      const nextBitrate = payload.format === "gif" ? null : retargetVideoBitrate(videoBitrate, size, payload.maxBytes);
-      if (nextBitrate === null) break;
-      videoBitrate = nextBitrate;
+    } finally {
+      activeEncodingJobs.delete(payload.jobId);
     }
 
     removeFile(outputPath);
@@ -343,7 +401,10 @@ app.whenReady().then(() => {
   ipcMain.handle("desktop:video-cancel", (_event, jobIds) => {
     const targets = Array.isArray(jobIds) && jobIds.length > 0 ? jobIds : [...activeEncodingJobs.keys()];
     for (const jobId of targets) {
-      activeEncodingJobs.get(jobId)?.kill();
+      const job = activeEncodingJobs.get(jobId);
+      if (!job) continue;
+      job.cancelled = true;
+      job.process?.kill();
     }
     return true;
   });
@@ -389,20 +450,16 @@ app.whenReady().then(() => {
     return true;
   });
   ipcMain.handle("desktop:check-for-updates", async () => {
-    mainWindow?.webContents.send("desktop:update-status", { state: "checking" });
+    sendUpdateStatus({ state: "checking" });
 
     try {
-      const latestVersion = await fetchLatestGithubRelease();
-      if (latestVersion && isNewerVersion(latestVersion, app.getVersion())) {
-        mainWindow?.webContents.send("desktop:update-status", { state: "available", version: latestVersion });
-      } else {
-        mainWindow?.webContents.send("desktop:update-status", { state: "unavailable" });
-      }
+      latestGithubVersion = await fetchLatestGithubRelease();
     } catch {
-      mainWindow?.webContents.send("desktop:update-status", { state: "unavailable" });
+      latestGithubVersion = null;
     }
+    reportNoInstallableUpdate();
 
-    if (app.isPackaged) void autoUpdater.checkForUpdatesAndNotify();
+    if (app.isPackaged) checkForInstallableUpdate();
     return true;
   });
   ipcMain.handle("desktop:open-release-page", () => {
@@ -410,42 +467,51 @@ app.whenReady().then(() => {
     return true;
   });
 
+  sendOpenPaths(getLaunchPaths(process.argv));
   createWindow();
   if (app.isPackaged) {
-    autoUpdater.on("checking-for-update", () => mainWindow?.webContents.send("desktop:update-status", { state: "checking" }));
-    autoUpdater.on("update-available", (info) => mainWindow?.webContents.send("desktop:update-status", { state: "downloading", version: info.version }));
+    autoUpdater.on("checking-for-update", () => sendUpdateStatus({ state: "checking" }));
+    autoUpdater.on("update-available", (info) => sendUpdateStatus({ state: "downloading", version: info.version }));
+    // Without this the UI stays on "Checking for updates..." whenever the app is up to date.
+    autoUpdater.on("update-not-available", reportNoInstallableUpdate);
     autoUpdater.on("update-downloaded", (info) => {
       updateReady = true;
-      mainWindow?.webContents.send("desktop:update-status", { state: "ready", version: info.version });
+      sendUpdateStatus({ state: "ready", version: info.version });
     });
-    autoUpdater.on("error", () => mainWindow?.webContents.send("desktop:update-status", { state: "unavailable" }));
-    void autoUpdater.checkForUpdatesAndNotify();
+    autoUpdater.on("error", reportNoInstallableUpdate);
+    checkForInstallableUpdate();
   }
   app.on("activate", () => BrowserWindow.getAllWindows().length === 0 && createWindow());
-});
-
-function readMediaFiles(filePaths) {
-  return filePaths.filter(isMediaPath).map((filePath) => ({
-    name: path.basename(filePath),
-    path: filePath,
-    bytes: fs.readFileSync(filePath),
-  }));
 }
 
-if (process.platform === "win32") {
-  const gotLock = app.requestSingleInstanceLock();
-  if (!gotLock) {
-    app.quit();
-  } else {
-    app.on("second-instance", (_event, commandLine) => {
-      const paths = commandLine.filter(isMediaPath);
-      if (mainWindow) {
-        if (mainWindow.isMinimized()) mainWindow.restore();
-        mainWindow.focus();
-      }
-      sendOpenPaths(paths);
-    });
-  }
+function readMediaFiles(filePaths) {
+  return filePaths.filter(isReadableMediaPath).flatMap((filePath) => {
+    try {
+      return [{ name: path.basename(filePath), path: filePath, bytes: fs.readFileSync(filePath) }];
+    } catch {
+      // An unreadable file (permissions, removed since it was chosen) is skipped rather than
+      // failing the whole batch.
+      return [];
+    }
+  });
+}
+
+// A second launch (opening an associated file while ImageFit is running) hands its paths to
+// the running instance instead of starting another window. macOS routes these through
+// "open-file" on the existing process, so it does not need the lock.
+const isPrimaryInstance = process.platform === "darwin" || app.requestSingleInstanceLock();
+
+if (!isPrimaryInstance) {
+  app.quit();
+} else {
+  app.on("second-instance", (_event, commandLine) => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+    sendOpenPaths(commandLine);
+  });
+  app.whenReady().then(onReady);
 }
 
 app.on("window-all-closed", () => {
