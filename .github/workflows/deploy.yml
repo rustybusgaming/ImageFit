@@ -64,9 +64,10 @@ jobs:
             os: ubuntu-latest
             command: pnpm desktop:package:linux
             artifact: imagefit-desktop-linux
+            installer: release/*.AppImage
             path: |
               release/*.AppImage
-              release/*.yml
+              release/latest*.yml
               release/*.blockmap
 
           # -------------------------
@@ -76,10 +77,11 @@ jobs:
             os: macos-latest
             command: pnpm desktop:package:mac -- --arm64
             artifact: imagefit-desktop-macos-arm64
+            installer: release/*arm64*.dmg
             path: |
               release/*arm64*.dmg
               release/*arm64*.zip
-              release/*.yml
+              release/latest*.yml
               release/*.blockmap
 
           # -------------------------
@@ -89,10 +91,11 @@ jobs:
             os: macos-15-intel
             command: pnpm desktop:package:mac -- --x64
             artifact: imagefit-desktop-macos-x64
+            installer: release/*x64*.dmg
             path: |
               release/*x64*.dmg
               release/*x64*.zip
-              release/*.yml
+              release/latest*.yml
               release/*.blockmap
 
           # -------------------------
@@ -102,9 +105,10 @@ jobs:
             os: windows-latest
             command: pnpm desktop:package:win
             artifact: imagefit-desktop-windows
+            installer: release/*.exe
             path: |
               release/*.exe
-              release/*.yml
+              release/latest*.yml
               release/*.blockmap
 
     steps:
@@ -173,6 +177,25 @@ jobs:
         run: |
           echo "Files produced in release/:"
           find release -maxdepth 1 -type f -print | sort
+
+      # electron-builder omits the arch from the filename for the default arch (x64), so an
+      # upload glob containing an arch token can quietly match nothing. The artifact upload
+      # below cannot catch that on its own: `if-no-files-found: error` is still satisfied by
+      # the .yml/.blockmap patterns, so the job goes green with no installer in it. Fail here
+      # instead, where the message points at the actual cause.
+      - name: Verify the installer was produced
+        shell: bash
+        run: |
+          shopt -s nullglob
+          matches=(${{ matrix.installer }})
+
+          if [ ${#matches[@]} -eq 0 ]; then
+            echo "::error::No file matched '${{ matrix.installer }}'. The ${{ matrix.name }} installer was not produced under the expected name, so it would be left out of the release."
+            exit 1
+          fi
+
+          echo "Matched ${#matches[@]} installer file(s) for ${{ matrix.name }}:"
+          printf '  %s\n' "${matches[@]}"
 
       - name: Upload desktop artifact
         uses: actions/upload-artifact@v4
