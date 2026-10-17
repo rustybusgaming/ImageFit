@@ -1,9 +1,11 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, protocol, shell } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const { spawn, spawnSync } = require("node:child_process");
 const path = require("node:path");
 const fs = require("node:fs");
 const https = require("node:https");
+const { randomUUID } = require("node:crypto");
+const { Readable } = require("node:stream");
 const {
   ENGINE_REQUIREMENTS,
   MAX_SIZE_ATTEMPTS,
@@ -14,6 +16,13 @@ const {
   planVideoBitrate,
   retargetVideoBitrate,
 } = require("./video-config.cjs");
+const {
+  MEDIA_SCHEME,
+  createMediaRegistry,
+  getVideoContentType,
+  isVideoPath,
+  parseByteRange,
+} = require("./media-stream.cjs");
 
 const GITHUB_REPO = "rustybusgaming/ImageFit";
 const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases/latest`;
@@ -28,6 +37,14 @@ const MEDIA_EXTENSIONS = new Set([
   ".bmp", ".ico", ".tif", ".tiff", ".psd", ".qoi", ".tga", ".targa", ".dds", ".jp2", ".j2k",
   ".mp4", ".webm", ".mov", ".m4v", ".avi", ".mkv",
 ]);
+const mediaRegistry = createMediaRegistry(randomUUID);
+
+// Must be declared before "ready". `stream` lets <video> read the response progressively and
+// seek with range requests instead of waiting for the whole file.
+protocol.registerSchemesAsPrivileged([
+  { scheme: MEDIA_SCHEME, privileges: { standard: true, secure: true, stream: true } },
+]);
+
 let mainWindow = null;
 let pendingOpenPaths = [];
 let updateReady = false;
@@ -287,7 +304,39 @@ app.on("open-file", (event, filePath) => {
   if (app.isReady() && !mainWindow) createWindow();
 });
 
+/** Serves files registered by readMediaFiles from disk, honouring range requests for seeking. */
+async function serveMedia(request) {
+  const filePath = mediaRegistry.resolve(request.url);
+  if (!filePath) return new Response(null, { status: 404 });
+
+  let size;
+  try {
+    size = (await fs.promises.stat(filePath)).size;
+  } catch {
+    return new Response(null, { status: 404 });
+  }
+
+  const range = parseByteRange(request.headers.get("range"), size);
+  if (range === "unsatisfiable") {
+    return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${size}` } });
+  }
+
+  const start = range?.start ?? 0;
+  const end = range?.end ?? size - 1;
+  const headers = {
+    "Content-Type": getVideoContentType(filePath),
+    "Accept-Ranges": "bytes",
+    "Content-Length": String(Math.max(0, end - start + 1)),
+  };
+  if (range) headers["Content-Range"] = `bytes ${start}-${end}/${size}`;
+
+  const body = size === 0 ? null : Readable.toWeb(fs.createReadStream(filePath, { start, end }));
+  return new Response(body, { status: range ? 206 : 200, headers });
+}
+
 function onReady() {
+  protocol.handle(MEDIA_SCHEME, serveMedia);
+
   ipcMain.handle("desktop:video-encode", async (event, payload) => {
     assertVideoPayload(payload);
     const ffmpegPath = getFfmpegPath();
@@ -484,14 +533,35 @@ function onReady() {
   app.on("activate", () => BrowserWindow.getAllWindows().length === 0 && createWindow());
 }
 
+/**
+ * Images are small enough (and needed whole by the canvas pipeline) to send as bytes. Videos
+ * are streamed through the media scheme instead: the native encoder only needs the path, and
+ * reading one into memory fails outright past 2 GiB. A file that cannot be opened is reported
+ * back rather than dropped, so the renderer can say why nothing happened.
+ */
 function readMediaFiles(filePaths) {
-  return filePaths.filter(isReadableMediaPath).flatMap((filePath) => {
+  return filePaths.filter(isMediaPath).map((filePath) => {
+    const name = path.basename(filePath);
+
     try {
-      return [{ name: path.basename(filePath), path: filePath, bytes: fs.readFileSync(filePath) }];
-    } catch {
-      // An unreadable file (permissions, removed since it was chosen) is skipped rather than
-      // failing the whole batch.
-      return [];
+      const stats = fs.statSync(filePath);
+      if (!stats.isFile()) throw new Error("Not a file.");
+
+      if (isVideoPath(filePath)) {
+        fs.accessSync(filePath, fs.constants.R_OK);
+        return { name, path: filePath, url: mediaRegistry.register(filePath) };
+      }
+
+      return { name, path: filePath, bytes: fs.readFileSync(filePath) };
+    } catch (error) {
+      const reason = error?.code === "ERR_FS_FILE_TOO_LARGE"
+        ? "it is too large to open"
+        : error?.code === "EACCES" || error?.code === "EPERM"
+          ? "permission was denied"
+          : error?.code === "ENOENT"
+            ? "it no longer exists"
+            : "it could not be read";
+      return { name, path: filePath, error: `ImageFit could not open ${name}: ${reason}.` };
     }
   });
 }

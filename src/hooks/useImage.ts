@@ -1,27 +1,27 @@
 import { useEffect, useRef, useState } from "react";
 import { classifyMedia } from "../lib/imageFormats";
 import { prepareImage } from "../lib/imageSource";
+import { openMediaUrl } from "../lib/mediaSource";
 
 export function useImage() {
   const [image, setImage] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isPreparing, setIsPreparing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const objectUrlRef = useRef<string | null>(null);
+  const releaseUrlRef = useRef<(() => void) | null>(null);
   // Guards against an earlier, slower conversion overwriting a newer selection.
   const loadTokenRef = useRef(0);
 
   function revokeCurrentUrl() {
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current);
-      objectUrlRef.current = null;
-    }
+    releaseUrlRef.current?.();
+    releaseUrlRef.current = null;
   }
 
   function show(source: Blob, file: File) {
     revokeCurrentUrl();
-    const url = URL.createObjectURL(source);
-    objectUrlRef.current = url;
+    // A desktop-opened video is streamed from disk rather than held as an object URL.
+    const { url, release } = openMediaUrl(source);
+    releaseUrlRef.current = release;
     setImage(url);
     setImageFile(file);
   }
@@ -69,6 +69,11 @@ export function useImage() {
     setIsPreparing(false);
   }
 
+  /** Reports a file that never reached `loadImage`, such as one the desktop could not open. */
+  function reportLoadError(message: string) {
+    setLoadError(message);
+  }
+
   useEffect(() => {
     return () => {
       revokeCurrentUrl();
@@ -83,5 +88,6 @@ export function useImage() {
     isVideo: imageFile ? classifyMedia(imageFile) === "video" : false,
     loadImage,
     clearImage,
+    reportLoadError,
   };
 }

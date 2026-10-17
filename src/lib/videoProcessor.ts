@@ -1,6 +1,7 @@
 import { FFmpeg, FFFSType } from "@ffmpeg/ffmpeg";
 import coreURL from "@ffmpeg/core?url";
 import wasmURL from "@ffmpeg/core/wasm?url";
+import { openMediaUrl } from "./mediaSource";
 
 /** The instance being loaded or already loaded, kept so a cancel can terminate it. */
 let ffmpeg: FFmpeg | null = null;
@@ -154,14 +155,15 @@ export function cancelVideoEncoding(): void {
 function getVideoMetadata(file: File): Promise<{ duration: number; width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video");
-    const url = URL.createObjectURL(file);
+    // Desktop-opened videos stream from disk; their placeholder File has no bytes to read.
+    const source = openMediaUrl(file);
 
     function release() {
       video.onloadedmetadata = null;
       video.onerror = null;
       video.removeAttribute("src");
       video.load();
-      URL.revokeObjectURL(url);
+      source.release();
     }
 
     video.onloadedmetadata = () => {
@@ -174,7 +176,7 @@ function getVideoMetadata(file: File): Promise<{ duration: number; width: number
       reject(new Error("Could not read this video's duration. The browser may not support this container format."));
     };
     video.preload = "metadata";
-    video.src = url;
+    video.src = source.url;
   });
 }
 

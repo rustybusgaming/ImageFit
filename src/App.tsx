@@ -10,11 +10,11 @@ import ImageSquisher from "./components/ImageSquisher";
 import VideoSquisher from "./components/VideoSquisher";
 import { useImage } from "./hooks/useImage";
 import { classifyMedia } from "./lib/imageFormats";
-import { rememberDesktopFilePath } from "./lib/desktopVideoProcessor";
+import { registerDesktopFile } from "./lib/mediaSource";
 import type { ImageTransform } from "./lib/imageProcessor";
 
 export default function App() {
-  const { image, imageFile, isVideo, isPreparing, loadError, loadImage, clearImage } = useImage();
+  const { image, imageFile, isVideo, isPreparing, loadError, loadImage, clearImage, reportLoadError } = useImage();
   const isDesktop = typeof window !== "undefined" && Boolean(window.imageFitDesktop);
   const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformPreset[]>([]);
   const [transform, setTransform] = useState<ImageTransform>();
@@ -30,7 +30,9 @@ export default function App() {
   const handleDesktopPaths = useEffectEvent((paths: string[]) => {
     const desktop = window.imageFitDesktop;
     if (!desktop) return;
-    void desktop.readMediaFiles(paths).then(loadDesktopFiles);
+    void desktop.readMediaFiles(paths)
+      .then(loadDesktopFiles)
+      .catch(() => reportLoadError("ImageFit could not open the selected files."));
   });
 
   useEffect(() => {
@@ -75,22 +77,43 @@ export default function App() {
     }
   }
 
-  function loadDesktopFiles(files: Array<{ name: string; path: string; bytes: Uint8Array }>) {
-    handleUpload(files.map((file) => {
-      const bytes = new Uint8Array(file.bytes.byteLength);
-      bytes.set(file.bytes);
-      const rebuilt = new File([bytes.buffer], file.name, { type: getMediaType(file.name) });
-      // The native encoder reads the source from disk, which a rebuilt File cannot point to.
-      rememberDesktopFilePath(rebuilt, file.path);
-      return rebuilt;
-    }));
+  function loadDesktopFiles(files: DesktopOpenedFile[]) {
+    const opened: File[] = [];
+    const failures: string[] = [];
+
+    for (const file of files) {
+      if ("error" in file) {
+        failures.push(file.error);
+      } else if ("url" in file) {
+        // Videos stay on disk: an empty placeholder File carries the name, and mediaSource maps
+        // it to the streaming URL for playback and the path for the native encoder.
+        const placeholder = new File([], file.name, { type: getMediaType(file.name) });
+        registerDesktopFile(placeholder, { path: file.path, url: file.url });
+        opened.push(placeholder);
+      } else {
+        const bytes = new Uint8Array(file.bytes.byteLength);
+        bytes.set(file.bytes);
+        const rebuilt = new File([bytes.buffer], file.name, { type: getMediaType(file.name) });
+        // The native encoder reads the source from disk, which a rebuilt File cannot point to.
+        registerDesktopFile(rebuilt, { path: file.path });
+        opened.push(rebuilt);
+      }
+    }
+
+    if (opened.length > 0) handleUpload(opened);
+    // Reported after the upload, which clears any earlier error as it starts loading.
+    if (failures.length > 0) reportLoadError(failures.join(" "));
   }
 
   async function openDesktopMedia() {
     const desktop = window.imageFitDesktop;
     if (!desktop) return;
 
-    loadDesktopFiles(await desktop.openMediaDialog());
+    try {
+      loadDesktopFiles(await desktop.openMediaDialog());
+    } catch {
+      reportLoadError("ImageFit could not open the selected files.");
+    }
   }
 
   function selectImage(index: number) {
@@ -172,6 +195,11 @@ export default function App() {
             ))}
           </div>
         </header>
+
+        {/* The upload zone shows load errors itself; once media is open they would otherwise vanish. */}
+        {image && loadError ? (
+          <p role="alert" className="border border-[#ff7448]/40 bg-[#2b1913] px-4 py-3 text-sm text-[#ffb39d]">{loadError}</p>
+        ) : null}
 
         {!image ? (
           <UploadZone onUpload={handleUpload} isBusy={isPreparing} error={loadError} />

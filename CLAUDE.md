@@ -41,11 +41,20 @@ Every media operation forks on it:
 |---|---|---|
 | Save output | anchor `download` click (`src/lib/download.ts`) | `saveFile` IPC → native save dialog |
 | Encode video | ffmpeg.wasm (`src/lib/videoProcessor.ts`) | spawned FFmpeg binary (`desktop/main.cjs`) |
-| Open media | react-dropzone | OS dialog / file associations → bytes over IPC |
+| Open media | react-dropzone | OS dialog / file associations → IPC (images as bytes, videos streamed) |
 
-Desktop file opens arrive as `{name, bytes}` over IPC and are rebuilt into real `File`
+Desktop file opens go through `readMediaFiles` in `main.cjs` and are rebuilt into `File`
 objects in `App.tsx` (`loadDesktopFiles` / `getMediaType`), so everything downstream sees
-the same `File` shape regardless of origin.
+the same `File` shape regardless of origin. Images arrive as `{name, path, bytes}`. Videos
+never cross IPC as bytes — a copy of a multi-GB file is wasteful and `readFileSync` fails past
+2 GiB — so they arrive as `{name, path, url}` and become an *empty* placeholder `File`.
+`src/lib/mediaSource.ts` maps it to its disk path (for the native encoder) and to an
+`imagefit-media://media/<token>` URL that main serves from disk with range support
+(`desktop/media-stream.cjs`). Anything that needs a playable URL for a source file must go
+through `openMediaUrl` rather than `createObjectURL`, or desktop videos load as zero bytes.
+Tokens are issued only for files the user opened, so the scheme cannot be used to read
+arbitrary paths. A file that cannot be opened comes back as `{name, path, error}` and is shown
+as a banner rather than dropped.
 
 ### The two FFmpeg pipelines are parallel implementations
 
@@ -97,7 +106,8 @@ Chromium: run `pnpm dev` and drive `/src/lib/*.ts` through `page.evaluate` dynam
 ### IPC validation boundary
 
 `desktop/video-config.cjs` is deliberately Electron-free so it can be unit-tested under
-plain `node --test`; it holds the only tests in the repo. That is also why the engine
+plain `node --test`, as is `desktop/media-stream.cjs` (range parsing and the media token
+registry); between them they hold the only tests in the repo. That is also why the engine
 platform gating lives there rather than in `main.cjs` — its helpers take an optional
 `platform` argument so tests can simulate win32/darwin/linux. `assertVideoPayload` validates
 every renderer-supplied encode payload in the main process, and `getOutputFilename` must
@@ -186,8 +196,8 @@ Both processors share the single wasm core through `getFFmpeg()` in `videoProces
 
 `App.tsx` holds all workflow state. `imageQueue` and `videoQueue` are mutually exclusive —
 `handleUpload` picks images if any are present and otherwise videos. `useImage` owns the
-single active object URL and revokes the previous one on every load, so nothing else should
-call `createObjectURL` on the source file. `ImageEditor` is remounted via a `key` derived
+single active media URL (via `openMediaUrl`) and releases the previous one on every load, so
+nothing else should call `createObjectURL` on the source file. `ImageEditor` is remounted via a `key` derived
 from the file identity to reset crop state between images.
 
 ## Conventions
