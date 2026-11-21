@@ -229,6 +229,12 @@ test("a GIF already at its frame-rate floor takes the whole reduction from scale
   assert.ok(next.scale < 0.7 && next.scale > MIN_GIF_SCALE, `got ${next.scale}`);
 });
 
+test("a GIF slower than the frame-rate floor is never sped up", () => {
+  const next = planGifRetry({ frameRate: 8, scale: 1 }, 20 * 1024 * 1024, 10 * 1024 * 1024);
+  assert.equal(next.frameRate, 8);
+  assert.ok(next.scale < 1);
+});
+
 test("repeated GIF retries keep shrinking and stop within the attempt budget", () => {
   // A busy clip that cannot reach 1 MB: the planner must reach its floors and then give up.
   let step = { frameRate: 30, scale: 1 };

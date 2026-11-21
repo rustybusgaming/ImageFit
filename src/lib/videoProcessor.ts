@@ -116,11 +116,11 @@ export interface GifStep {
 const GIF_FRAME_RATE_EXPONENT = 0.9;
 const GIF_SCALE_EXPONENT = 1.8;
 const GIF_USABLE_FRACTION = 0.9;
-const MIN_GIF_FRAME_RATE = 10;
+export const MIN_GIF_FRAME_RATE = 10;
 const MIN_GIF_SCALE = 0.25;
-const MAX_GIF_ATTEMPTS = 4;
+export const MAX_GIF_ATTEMPTS = 4;
 
-function planGifRetry(current: GifStep, actualBytes: number, maxBytes: number): GifStep | null {
+export function planGifRetry(current: GifStep, actualBytes: number, maxBytes: number): GifStep | null {
   const needed = (maxBytes * GIF_USABLE_FRACTION) / actualBytes;
   if (needed >= 1) return null;
 
@@ -134,9 +134,10 @@ function planGifRetry(current: GifStep, actualBytes: number, maxBytes: number): 
     frameRateShare = Math.max(frameRateFloorShare, needed / scaleShare);
   }
 
-  const frameRate = Math.max(
-    MIN_GIF_FRAME_RATE,
-    Math.min(current.frameRate, Math.floor(current.frameRate * frameRateShare ** (1 / GIF_FRAME_RATE_EXPONENT)))
+  // Clamped to the current rate last, so a source already below the floor is never sped up.
+  const frameRate = Math.min(
+    current.frameRate,
+    Math.max(MIN_GIF_FRAME_RATE, Math.floor(current.frameRate * frameRateShare ** (1 / GIF_FRAME_RATE_EXPONENT)))
   );
   const scale = Math.max(
     MIN_GIF_SCALE,

@@ -25,8 +25,8 @@ const SQUISH_PRESETS: SquishPreset[] = [
   { id: "crunchy", label: "Crunchy", description: "Smaller, with a little crunch.", settings: { format: "webp", quality: 0.58, scale: 0.82, effect: "pop" } },
   { id: "potato", label: "Potato", description: "Alarmingly compact. Deliciously pixelated.", settings: { format: "jpg", quality: 0.3, scale: 0.55, effect: "warm" } },
   { id: "deep-fried", label: "Deep fried", description: "Maximum meme energy. Minimum bytes.", settings: { format: "jpg", quality: 0.14, scale: 0.38, effect: "pop" } },
-  { id: "discord-10mb", label: "Discord 10 MB", description: "WebP tuned to fit Discord's 10 MB upload limit.", settings: { format: "webp", quality: 0.9, scale: 1, effect: "none", maxBytes: 10 * 1024 * 1024 } },
-  { id: "discord-5mb", label: "Discord 5 MB", description: "WebP tuned to fit Discord's 5 MB upload limit.", settings: { format: "webp", quality: 0.9, scale: 1, effect: "none", maxBytes: 5 * 1024 * 1024 } },
+  { id: "discord-10mb", label: "Discord 10 MB", description: "Tuned to fit Discord's 10 MB upload limit.", settings: { format: "webp", quality: 0.9, scale: 1, effect: "none", maxBytes: 10 * 1024 * 1024 } },
+  { id: "discord-5mb", label: "Discord 5 MB", description: "Tuned to fit Discord's 5 MB upload limit.", settings: { format: "webp", quality: 0.9, scale: 1, effect: "none", maxBytes: 5 * 1024 * 1024 } },
   // maxBytes is a placeholder: the custom preset's limit comes from the size field.
   { id: "custom", label: "Custom size", description: "Pick your own file-size limit.", settings: { format: "webp", quality: 0.9, scale: 1, effect: "none", maxBytes: 2 * MB } },
 ];
@@ -61,7 +61,10 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
       const format = sourceFile ? await readImageFormat(sourceFile) : null;
 
       // Animated sources go through FFmpeg: the canvas pipeline would flatten them to one frame.
-      if (sourceFile && format?.isAnimated) {
+      // Every GIF goes there too, animated or not, because a canvas cannot write GIF and people
+      // who upload a GIF expect a GIF back.
+      const isGif = format?.kind === "gif";
+      if (sourceFile && format && (format.isAnimated || isGif)) {
         if (!format.isFFmpegDecodable) {
           throw new Error(
             "Animated WebP files cannot be re-encoded without losing their animation, so ImageFit leaves them alone."
@@ -73,12 +76,15 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
           scale: settings.scale,
           effect: settings.effect,
           maxBytes,
+          output: isGif ? "gif" : "webp",
+          isAnimated: format.isAnimated,
         });
         const savedShare = Math.round((1 - animated.blob.size / sourceFile.size) * 100);
+        const kept = format.isAnimated ? (isGif ? "still a GIF, animation kept" : "animation kept") : "still a GIF";
         setResult(
           savedShare > 0
-            ? `${formatBytes(animated.blob.size)} · ${savedShare}% smaller · animation kept`
-            : `${formatBytes(animated.blob.size)} ready · animation kept`
+            ? `${formatBytes(animated.blob.size)} · ${savedShare}% smaller · ${kept}`
+            : `${formatBytes(animated.blob.size)} ready · ${kept}`
         );
         await downloadBlob(animated.blob, `imagefit-${selectedPreset.id}.${animated.extension}`);
         return;

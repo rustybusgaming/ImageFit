@@ -169,9 +169,10 @@ function planGifRetry(current, actualBytes, maxBytes) {
     frameRateShare = Math.max(frameRateFloorShare, needed / scaleShare);
   }
 
-  const frameRate = Math.max(
-    MIN_GIF_FRAME_RATE,
-    Math.min(current.frameRate, Math.floor(current.frameRate * frameRateShare ** (1 / GIF_FRAME_RATE_EXPONENT)))
+  // Clamped to the current rate last, so a source already below the floor is never sped up.
+  const frameRate = Math.min(
+    current.frameRate,
+    Math.max(MIN_GIF_FRAME_RATE, Math.floor(current.frameRate * frameRateShare ** (1 / GIF_FRAME_RATE_EXPONENT)))
   );
   const scale = Math.max(
     MIN_GIF_SCALE,
