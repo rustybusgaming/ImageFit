@@ -5,6 +5,8 @@ import type { CompressionSettings, TargetCompressionSettings } from "../lib/imag
 import { downloadBlob } from "../lib/download";
 import { readImageFormat } from "../lib/imageFormats";
 import { compressAnimatedImage } from "../lib/animatedProcessor";
+import { KB, MB, formatBytes } from "../lib/fileSize";
+import SizeTargetInput from "./SizeTargetInput";
 
 interface Props {
   image: string;
@@ -25,17 +27,14 @@ const SQUISH_PRESETS: SquishPreset[] = [
   { id: "deep-fried", label: "Deep fried", description: "Maximum meme energy. Minimum bytes.", settings: { format: "jpg", quality: 0.14, scale: 0.38, effect: "pop" } },
   { id: "discord-10mb", label: "Discord 10 MB", description: "WebP tuned to fit Discord's 10 MB upload limit.", settings: { format: "webp", quality: 0.9, scale: 1, effect: "none", maxBytes: 10 * 1024 * 1024 } },
   { id: "discord-5mb", label: "Discord 5 MB", description: "WebP tuned to fit Discord's 5 MB upload limit.", settings: { format: "webp", quality: 0.9, scale: 1, effect: "none", maxBytes: 5 * 1024 * 1024 } },
+  // maxBytes is a placeholder: the custom preset's limit comes from the size field.
+  { id: "custom", label: "Custom size", description: "Pick your own file-size limit.", settings: { format: "webp", quality: 0.9, scale: 1, effect: "none", maxBytes: 2 * MB } },
 ];
+
+const CUSTOM_SIZE = { initial: 2 * MB, min: 10 * KB, max: 100 * MB };
 
 function isTargetCompression(settings: CompressionSettings | TargetCompressionSettings): settings is TargetCompressionSettings {
   return "maxBytes" in settings;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024 * 1024) {
-    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  }
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export default function ImageSquisher({ image, sourceFile }: Props) {
@@ -43,7 +42,11 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
   const [isCompressing, setIsCompressing] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // null while the custom size field holds something unusable.
+  const [customMaxBytes, setCustomMaxBytes] = useState<number | null>(CUSTOM_SIZE.initial);
   const selectedPreset = SQUISH_PRESETS.find((preset) => preset.id === presetId) ?? SQUISH_PRESETS[0];
+  const isCustom = selectedPreset.id === "custom";
+  const isBlocked = isCompressing || (isCustom && customMaxBytes === null);
 
   async function squishImage() {
     setIsCompressing(true);
@@ -51,7 +54,9 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
     setResult(null);
 
     try {
-      const settings = selectedPreset.settings;
+      const settings = isCustom && customMaxBytes !== null
+        ? { ...selectedPreset.settings, maxBytes: customMaxBytes }
+        : selectedPreset.settings;
       const maxBytes = isTargetCompression(settings) ? settings.maxBytes : undefined;
       const format = sourceFile ? await readImageFormat(sourceFile) : null;
 
@@ -122,12 +127,21 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
         ))}
       </div>
 
+      {isCustom ? (
+        <SizeTargetInput
+          initialBytes={customMaxBytes ?? CUSTOM_SIZE.initial}
+          minBytes={CUSTOM_SIZE.min}
+          maxBytes={CUSTOM_SIZE.max}
+          onChange={setCustomMaxBytes}
+        />
+      ) : null}
+
       <button
         type="button"
-        aria-disabled={isCompressing}
-        title={isCompressing ? "Compression in progress..." : undefined}
+        aria-disabled={isBlocked}
+        title={isCompressing ? "Compression in progress..." : isBlocked ? "Enter a valid file size first." : undefined}
         onClick={(e) => {
-          if (isCompressing) {
+          if (isBlocked) {
             e.preventDefault();
             return;
           }
@@ -136,7 +150,11 @@ export default function ImageSquisher({ image, sourceFile }: Props) {
         className="mt-4 inline-flex w-full items-center justify-center gap-2 bg-[#ff7448] px-5 py-3 text-sm font-bold text-[#21100b] transition hover:bg-[#ff9a7b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] aria-disabled:cursor-not-allowed aria-disabled:bg-[#6d392d] aria-disabled:text-[#e8bbae]"
       >
         {isCompressing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Shrink className="h-4 w-4" aria-hidden="true" />}
-        {isCompressing ? "Squishing..." : `Squish it: ${selectedPreset.label}`}
+        {isCompressing
+          ? "Squishing..."
+          : isCustom && customMaxBytes !== null
+            ? `Squish it: under ${formatBytes(customMaxBytes)}`
+            : `Squish it: ${selectedPreset.label}`}
         {!isCompressing && <Download className="h-4 w-4" aria-hidden="true" />}
       </button>
       {result ? <p className="mt-3 text-sm font-medium text-[#d7ff47]">{result}</p> : null}

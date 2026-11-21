@@ -3,8 +3,10 @@ import { AlertTriangle, Download, FileVideo, Loader2, RotateCcw, Shrink, Square,
 import { downloadBlob } from "../lib/download";
 import { downloadZip } from "../lib/zip";
 import { cancelVideoEncoding, compressVideoToTarget, inspectVideo } from "../lib/videoProcessor";
-import type { VideoAudioMode, VideoCodec, VideoCompatibility, VideoEncoderEngine, VideoOutputFormat, VideoResolution } from "../lib/videoProcessor";
+import type { GifStep, VideoAudioMode, VideoCodec, VideoCompatibility, VideoEncoderEngine, VideoOutputFormat, VideoResolution } from "../lib/videoProcessor";
 import { cancelDesktopVideoEncoding, compressDesktopVideoToTarget, getAvailableVideoEncoders, isDesktopApp } from "../lib/desktopVideoProcessor";
+import { MB, formatBytes } from "../lib/fileSize";
+import SizeTargetInput from "./SizeTargetInput";
 
 interface Props {
   sourceFiles: File[];
@@ -20,6 +22,18 @@ const DISCORD_PRESETS = [
   { id: "discord-10mb", label: "10 MB", maxBytes: 10 * 1024 * 1024 },
   { id: "discord-20mb", label: "20 MB", maxBytes: 20 * 1024 * 1024 },
 ] as const;
+
+type SizePresetId = (typeof DISCORD_PRESETS)[number]["id"] | "custom";
+
+const CUSTOM_SIZE = { initial: 25 * MB, min: MB / 2, max: 4096 * MB };
+
+function describeGifReduction(step: GifStep, requestedFrameRate: number): string {
+  const parts = [
+    ...(step.frameRate !== requestedFrameRate ? [`${step.frameRate} fps`] : []),
+    ...(step.scale !== 1 ? [`${Math.round(step.scale * 100)}% size`] : []),
+  ];
+  return `Shrunk to ${parts.join(" at ")} to fit the size limit.`;
+}
 
 const RESOLUTION_PRESETS: Array<{ id: VideoResolution; label: string; description: string }> = [
   { id: "1080p", label: "1080p", description: "Best detail" },
@@ -95,7 +109,8 @@ type QueueStatus = "waiting" | "encoding" | "ready" | "failed" | "cancelled";
 
 function getOutputFilename(file: File, presetId: string, format: VideoOutputFormat, codec: VideoCodec): string {
   const sourceName = file.name.replace(/\.[^.]+$/, "") || "video";
-  return `${sourceName}-${presetId}-${codec}.${format}`;
+  // GIF output never touches the codec, so it does not belong in the name.
+  return format === "gif" ? `${sourceName}-${presetId}.gif` : `${sourceName}-${presetId}-${codec}.${format}`;
 }
 
 function getParentDirectory(outputPath: string): string {
@@ -112,7 +127,9 @@ function getCompressionErrorMessage(error: unknown): string {
 }
 
 export default function VideoSquisher({ sourceFiles }: Props) {
-  const [presetId, setPresetId] = useState<(typeof DISCORD_PRESETS)[number]["id"]>("discord-10mb");
+  const [presetId, setPresetId] = useState<SizePresetId>("discord-10mb");
+  // null while the custom size field holds something unusable.
+  const [customMaxBytes, setCustomMaxBytes] = useState<number | null>(CUSTOM_SIZE.initial);
   const [resolution, setResolution] = useState<VideoResolution>("720p");
   const [audio, setAudio] = useState<VideoAudioMode>("keep");
   const [frameRate, setFrameRate] = useState<30 | 24 | 15>(30);
@@ -130,8 +147,12 @@ export default function VideoSquisher({ sourceFiles }: Props) {
   const [queueStatus, setQueueStatus] = useState<Record<string, QueueStatus>>({});
   const [queueProgress, setQueueProgress] = useState<Record<string, number>>({});
   const [queueErrors, setQueueErrors] = useState<Record<string, string>>({});
+  const [queueNotes, setQueueNotes] = useState<Record<string, string>>({});
   const cancellationRef = useRef(false);
-  const selectedPreset = DISCORD_PRESETS.find((preset) => preset.id === presetId) ?? DISCORD_PRESETS[0];
+  const isCustomSize = presetId === "custom";
+  const maxBytes = isCustomSize ? customMaxBytes : (DISCORD_PRESETS.find((preset) => preset.id === presetId) ?? DISCORD_PRESETS[1]).maxBytes;
+  // Feeds the output filename, so a custom limit is named after its size.
+  const outputPresetId = isCustomSize && customMaxBytes !== null ? `custom-${Math.round((customMaxBytes / MB) * 10) / 10}mb` : presetId;
   const isDesktop = isDesktopApp();
   // GIF output never touches a video encoder, so it must not claim (or be named after) one.
   const encoder: VideoEncoderEngine =
@@ -160,6 +181,7 @@ export default function VideoSquisher({ sourceFiles }: Props) {
       setQueueStatus(Object.fromEntries(queue.map((entry) => [entry.key, "waiting"])));
       setQueueProgress(Object.fromEntries(queue.map((entry) => [entry.key, 0])));
       setQueueErrors({});
+      setQueueNotes({});
 
       if (queue.length === 0) {
         setIsInspecting(false);
@@ -182,6 +204,8 @@ export default function VideoSquisher({ sourceFiles }: Props) {
   }, [queue]);
 
   async function squishVideos(entriesToEncode = queue) {
+    if (maxBytes === null) return;
+
     setIsCompressing(true);
     setProgress(0);
     setResult(null);
@@ -196,25 +220,32 @@ export default function VideoSquisher({ sourceFiles }: Props) {
 
         setQueueStatus((current) => ({ ...current, [key]: "encoding" }));
         setQueueProgress((current) => ({ ...current, [key]: 0 }));
-        setQueueErrors((current) => {
+        const withoutKey = (current: Record<string, string>) => {
           const next = { ...current };
           delete next[key];
           return next;
-        });
+        };
+        setQueueErrors(withoutKey);
+        setQueueNotes(withoutKey);
         try {
-          const settings = { maxBytes: selectedPreset.maxBytes, resolution, audio, frameRate, format, codec, encoder };
+          const settings = { maxBytes, resolution, audio, frameRate, format, codec, encoder };
+          const onFileProgress = (nextProgress: number) => {
+            setProgress(nextProgress);
+            setQueueProgress((current) => ({ ...current, [key]: nextProgress }));
+          };
+          let reducedGif: GifStep | undefined;
           if (isDesktop) {
-            const output = await compressDesktopVideoToTarget(sourceFile, settings, selectedPreset.id, (nextProgress) => {
-              setProgress(nextProgress);
-              setQueueProgress((current) => ({ ...current, [key]: nextProgress }));
-            });
+            const output = await compressDesktopVideoToTarget(sourceFile, settings, outputPresetId, onFileProgress);
             nativeOutputs.push(output.outputPath);
+            reducedGif = output.reducedGif;
           } else {
-            const output = await compressVideoToTarget(sourceFile, settings, (nextProgress) => {
-                setProgress(nextProgress);
-                setQueueProgress((current) => ({ ...current, [key]: nextProgress }));
-            });
-            files.push({ blob: output, filename: getOutputFilename(sourceFile, selectedPreset.id, format, codec) });
+            const output = await compressVideoToTarget(sourceFile, settings, onFileProgress);
+            files.push({ blob: output.blob, filename: getOutputFilename(sourceFile, outputPresetId, format, codec) });
+            reducedGif = output.reducedGif;
+          }
+          if (reducedGif) {
+            const note = describeGifReduction(reducedGif, frameRate);
+            setQueueNotes((current) => ({ ...current, [key]: note }));
           }
           if (cancellationRef.current) break;
           setQueueStatus((current) => ({ ...current, [key]: "ready" }));
@@ -287,22 +318,28 @@ export default function VideoSquisher({ sourceFiles }: Props) {
         </div>
       ) : isInspecting ? <p className="mt-4 text-sm text-[#e8bbae]">Checking source compatibility...</p> : null}
 
-      <div className="mt-4 grid grid-cols-3 gap-2" role="group" aria-label="Upload size limit">
-        {DISCORD_PRESETS.map((preset) => (
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Upload size limit">
+        {[...DISCORD_PRESETS.map((preset) => ({ id: preset.id as SizePresetId, label: preset.label, description: "Upload limit" })), { id: "custom" as const, label: "Custom", description: "Pick a size" }].map((preset) => (
           <button
             key={preset.id}
             type="button"
             onClick={() => setPresetId(preset.id)}
             aria-pressed={preset.id === presetId}
-            className={`border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] ${
-              preset.id === presetId ? "border-[#ff7448] bg-[#2b1913] shadow-[3px_3px_0_#ff7448]" : "border-[#ff7448]/20 bg-[#211814] hover:border-[#ff7448]/60"
-            }`}
+            className="border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] border-[#ff7448]/20 bg-[#211814] hover:border-[#ff7448]/60 aria-pressed:border-[#ff7448] aria-pressed:bg-[#2b1913] aria-pressed:shadow-[3px_3px_0_#ff7448]"
           >
             <span className="block text-sm font-semibold text-[#fff5ee]">{preset.label}</span>
-            <span className="mt-1 block text-xs leading-4 text-[#e8bbae]">Upload limit</span>
+            <span className="mt-1 block text-xs leading-4 text-[#e8bbae]">{preset.description}</span>
           </button>
         ))}
       </div>
+      {isCustomSize ? (
+        <SizeTargetInput
+          initialBytes={customMaxBytes ?? CUSTOM_SIZE.initial}
+          minBytes={CUSTOM_SIZE.min}
+          maxBytes={CUSTOM_SIZE.max}
+          onChange={setCustomMaxBytes}
+        />
+      ) : null}
 
       <div className="mt-4">
         <p className="text-sm font-medium text-[#fff5ee]">Output resolution</p>
@@ -438,12 +475,19 @@ export default function VideoSquisher({ sourceFiles }: Props) {
 
       <button
         type="button"
-        disabled={isCompressing || isInspecting}
-        onClick={() => void squishVideos()}
-        className="mt-4 inline-flex w-full items-center justify-center gap-2 bg-[#ff7448] px-5 py-3 text-sm font-bold text-[#21100b] transition hover:bg-[#ff9a7b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] disabled:cursor-not-allowed disabled:bg-[#6d392d] disabled:text-[#e8bbae]"
+        aria-disabled={isCompressing || isInspecting || maxBytes === null}
+        title={maxBytes === null && !isCompressing ? "Enter a valid file size first." : undefined}
+        onClick={(event) => {
+          if (isCompressing || isInspecting || maxBytes === null) {
+            event.preventDefault();
+            return;
+          }
+          void squishVideos();
+        }}
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 bg-[#ff7448] px-5 py-3 text-sm font-bold text-[#21100b] transition hover:bg-[#ff9a7b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7448] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1d1512] aria-disabled:cursor-not-allowed aria-disabled:bg-[#6d392d] aria-disabled:text-[#e8bbae]"
       >
         {isCompressing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shrink className="h-4 w-4" />}
-        {isCompressing ? `Encoding ${Math.round(progress * 100)}%` : `Make ${sourceFiles.length} ${resolution} ${format.toUpperCase()} file${sourceFiles.length === 1 ? "" : "s"}`}
+        {isCompressing ? `Encoding ${Math.round(progress * 100)}%` : `Make ${sourceFiles.length} ${resolution} ${format.toUpperCase()} file${sourceFiles.length === 1 ? "" : "s"}${maxBytes !== null ? ` under ${formatBytes(maxBytes)}` : ""}`}
         {!isCompressing && <Download className="h-4 w-4" />}
       </button>
 
@@ -470,6 +514,7 @@ export default function VideoSquisher({ sourceFiles }: Props) {
               <li key={entry.key} className="border border-[#ff7448]/20 bg-[#211814] p-2">
                 <div className="flex items-center justify-between gap-3"><span className="truncate">{entry.file.name}</span><span className="shrink-0 uppercase">{status === "encoding" ? `${Math.round(fileProgress * 100)}%` : status}</span></div>
                 <div className="mt-2 h-1.5 overflow-hidden bg-[#3b251d]"><div className="h-full bg-[#ff7448] transition-[width]" style={{ width: `${fileProgress * 100}%` }} /></div>
+                {queueNotes[entry.key] ? <p className="mt-2 text-[#aeb2a5]">{queueNotes[entry.key]}</p> : null}
                 {queueErrors[entry.key] ? <p className="mt-2 text-[#ffb39d]">{queueErrors[entry.key]}</p> : null}
                 {status === "failed" && !isCompressing ? <button type="button" onClick={() => void squishVideos([entry])} className="mt-2 inline-flex items-center gap-1 font-semibold text-[#d7ff47] hover:text-[#e4ff80]"><RotateCcw className="h-3.5 w-3.5" />Retry this file</button> : null}
               </li>

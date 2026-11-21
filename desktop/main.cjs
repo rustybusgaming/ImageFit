@@ -6,11 +6,13 @@ const fs = require("node:fs");
 const https = require("node:https");
 const {
   ENGINE_REQUIREMENTS,
+  MAX_GIF_ATTEMPTS,
   MAX_SIZE_ATTEMPTS,
   assertVideoPayload,
   getOutputFilename,
   getVaapiDevice,
   isEngineSupportedHere,
+  planGifRetry,
   planVideoBitrate,
   retargetVideoBitrate,
 } = require("./video-config.cjs");
@@ -180,9 +182,12 @@ function getCodecArgs(codec, engine) {
   return ["-c:v", encoder, ...(engine === "nvenc" ? ["-preset", "p4"] : [])];
 }
 
-// The comma inside min() has to be escaped or FFmpeg reads it as a filter separator.
-function getVideoFilter(frameRate, height, format, engine) {
-  const scale = `fps=${frameRate},scale=-2:min(${height}\\,ih)`;
+// The commas inside min() have to be escaped or FFmpeg reads them as filter separators.
+// `gifScale` shrinks an oversized GIF on retry; video output always passes 1.
+function getVideoFilter(frameRate, height, format, engine, gifScale = 1) {
+  const scale = gifScale === 1
+    ? `fps=${frameRate},scale=-2:min(${height}\\,ih)`
+    : `fps=${frameRate},scale=-2:trunc(min(${height}\\,ih)*${gifScale}/2)*2`;
 
   if (format === "gif") {
     return `${scale},split[palettesource][frames];[palettesource]palettegen=stats_mode=diff[palette];[frames][palette]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`;
@@ -307,10 +312,13 @@ function onReady() {
       );
     }
 
-    const filter = getVideoFilter(payload.frameRate, payload.height, payload.format, payload.encoder);
-    const vaapiDevice = payload.encoder === "vaapi" && payload.format !== "gif" ? getVaapiDevice() : null;
+    const isGif = payload.format === "gif";
+    const vaapiDevice = payload.encoder === "vaapi" && !isGif ? getVaapiDevice() : null;
+    // GIF is size-targeted by frame rate and scale rather than bitrate; see planGifRetry.
+    let gifStep = { frameRate: payload.frameRate, scale: 1 };
 
     function buildArgs(videoBitrate) {
+      const filter = getVideoFilter(gifStep.frameRate, payload.height, payload.format, payload.encoder, gifStep.scale);
       const encodingArgs = payload.format === "gif"
         ? ["-loop", "0"]
         : [
@@ -373,7 +381,8 @@ function onReady() {
     activeEncodingJobs.set(payload.jobId, job);
 
     try {
-      for (let attempt = 0; attempt < MAX_SIZE_ATTEMPTS; attempt += 1) {
+      const maxAttempts = isGif ? MAX_GIF_ATTEMPTS : MAX_SIZE_ATTEMPTS;
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
         try {
           await runFfmpeg(buildArgs(videoBitrate));
         } catch (error) {
@@ -384,9 +393,19 @@ function onReady() {
         }
 
         const size = fs.statSync(outputPath).size;
-        if (size <= payload.maxBytes) return { outputPath, size };
+        if (size <= payload.maxBytes) {
+          const reduced = isGif && (gifStep.frameRate !== payload.frameRate || gifStep.scale !== 1);
+          return { outputPath, size, ...(reduced ? { reducedGif: gifStep } : {}) };
+        }
 
-        const nextBitrate = payload.format === "gif" ? null : retargetVideoBitrate(videoBitrate, size, payload.maxBytes);
+        if (isGif) {
+          const nextStep = planGifRetry(gifStep, size, payload.maxBytes);
+          if (nextStep === null) break;
+          gifStep = nextStep;
+          continue;
+        }
+
+        const nextBitrate = retargetVideoBitrate(videoBitrate, size, payload.maxBytes);
         if (nextBitrate === null) break;
         videoBitrate = nextBitrate;
       }
@@ -395,7 +414,9 @@ function onReady() {
     }
 
     removeFile(outputPath);
-    throw new Error("This video could not be reduced to the selected file-size limit.");
+    throw new Error(isGif
+      ? "This GIF is still too large even at a lower frame rate and size. Trim the clip, pick a larger size limit, or export MP4 instead."
+      : "This video could not be reduced to the selected file-size limit.");
   });
 
   ipcMain.handle("desktop:video-cancel", (_event, jobIds) => {

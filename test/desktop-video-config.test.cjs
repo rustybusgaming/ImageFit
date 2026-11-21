@@ -8,7 +8,11 @@ const {
   getVaapiDevice,
   isCodecCompatible,
   isEngineSupportedHere,
+  MAX_GIF_ATTEMPTS,
+  MIN_GIF_FRAME_RATE,
+  MIN_GIF_SCALE,
   pickFastestEngine,
+  planGifRetry,
   planVideoBitrate,
   retargetVideoBitrate,
 } = require("../desktop/video-config.cjs");
@@ -51,6 +55,13 @@ test("desktop output filenames are stable and safe", () => {
   assert.equal(
     getOutputFilename("C:\\media\\clip.mkv", { ...validPayload, inputPath: "C:\\media\\clip.mkv", format: "webm", codec: "vp9", encoder: "nvenc" }),
     "C-media-clip-discord-10mb-vp9-nvenc.webm"
+  );
+});
+
+test("GIF output filenames leave out the unused codec and engine", () => {
+  assert.equal(
+    getOutputFilename("/media/clip.mp4", { ...validPayload, format: "gif", audio: "mute", presetId: "custom-7.5mb" }),
+    "clip-custom-7.5mb.gif"
   );
 });
 
@@ -185,4 +196,51 @@ test("engine selection falls back to software rather than picking something unus
   // An engine present for a different codec must not be selected for this one.
   assert.equal(pick("av1", ["h264_videotoolbox", "hevc_videotoolbox"]), "software");
   assert.equal(pick("av1", ["av1_qsv"]), "qsv");
+});
+
+// Sizes below were measured with the bundled FFmpeg and the app's GIF palette filter on a
+// 10-second 720p clip (30 fps: 19.8 MB) and a busy 6-second one (30 fps: 57.2 MB). The model
+// is size ~ frameRate^0.9 * scale^1.8, so each test checks the prediction lands under the cap.
+function predictGifBytes(baseBytes, base, step) {
+  return baseBytes * (step.frameRate / base.frameRate) ** 0.9 * (step.scale / base.scale) ** 1.8;
+}
+
+test("an oversized GIF is retried with both frame rate and scale reduced, landing under the cap", () => {
+  const start = { frameRate: 30, scale: 1 };
+  const maxBytes = 10 * 1024 * 1024;
+  const next = planGifRetry(start, 19_820_973, maxBytes);
+
+  assert.ok(next, "expected a retry step");
+  assert.ok(next.frameRate < 30 && next.frameRate >= 15, `frame rate should drop moderately, got ${next.frameRate}`);
+  assert.ok(next.scale < 1 && next.scale >= 0.7, `scale should drop moderately, got ${next.scale}`);
+  assert.ok(predictGifBytes(19_820_973, start, next) <= maxBytes);
+});
+
+test("GIF retries never go below the frame-rate and scale floors", () => {
+  const next = planGifRetry({ frameRate: 30, scale: 1 }, 500 * 1024 * 1024, 1024 * 1024);
+  assert.deepEqual(next, { frameRate: MIN_GIF_FRAME_RATE, scale: MIN_GIF_SCALE });
+
+  assert.equal(planGifRetry({ frameRate: MIN_GIF_FRAME_RATE, scale: MIN_GIF_SCALE }, 50 * 1024 * 1024, 1024 * 1024), null);
+});
+
+test("a GIF already at its frame-rate floor takes the whole reduction from scale", () => {
+  const next = planGifRetry({ frameRate: MIN_GIF_FRAME_RATE, scale: 1 }, 20 * 1024 * 1024, 10 * 1024 * 1024);
+  assert.equal(next.frameRate, MIN_GIF_FRAME_RATE);
+  assert.ok(next.scale < 0.7 && next.scale > MIN_GIF_SCALE, `got ${next.scale}`);
+});
+
+test("repeated GIF retries keep shrinking and stop within the attempt budget", () => {
+  // A busy clip that cannot reach 1 MB: the planner must reach its floors and then give up.
+  let step = { frameRate: 30, scale: 1 };
+  let attempts = 1;
+  for (;;) {
+    const size = predictGifBytes(57_163_287, { frameRate: 30, scale: 1 }, step) * 1.3;
+    const next = planGifRetry(step, size, 1024 * 1024);
+    if (next === null) break;
+    assert.ok(next.frameRate <= step.frameRate && next.scale <= step.scale);
+    assert.ok(next.frameRate < step.frameRate || next.scale < step.scale, "each retry must reduce something");
+    step = next;
+    attempts += 1;
+  }
+  assert.ok(attempts <= MAX_GIF_ATTEMPTS, `took ${attempts} attempts`);
 });

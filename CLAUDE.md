@@ -70,7 +70,10 @@ They are not identical, and the differences matter:
   bitrate corrected from the size actually produced. `USABLE_FRACTION` exists to keep that
   retry rare — it was 0.96, which x264 overshot on the first pass, so every browser encode
   silently ran twice and took about twice as long. Treat a shrinking margin as a performance
-  regression, not just a quality tweak. Retrying only helps bitrate-controlled
+  regression, not just a quality tweak. GIF output has no bitrate, so it is size-targeted
+  separately by `planGifRetry` (same file, likewise mirrored in `videoProcessor.ts`): an
+  oversized GIF is re-encoded at a lower frame rate and output scale computed from the size
+  produced, using a size ≈ fps^0.9 × scale^1.8 model measured on the bundled FFmpeg. Retrying only helps bitrate-controlled
   codecs: `mjpeg`, `prores`, and `dnxhd` set `-q:v`/`-profile:v`, so they ignore `-b:v`
   entirely and simply stop at the floor.
 

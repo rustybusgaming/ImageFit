@@ -26,7 +26,12 @@ interface Window {
         encoder: "software" | "nvenc" | "qsv" | "amf" | "videotoolbox" | "vaapi" | "mf";
       },
       onProgress: (progress: number) => void
-    ): Promise<{ outputPath: string; size: number }>;
+    ): Promise<{
+      outputPath: string;
+      size: number;
+      /** Present when a GIF had to drop frame rate or scale to fit `maxBytes`. */
+      reducedGif?: { frameRate: number; scale: number };
+    }>;
     cancelVideoEncode(): Promise<boolean>;
   };
 }

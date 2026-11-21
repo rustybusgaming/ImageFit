@@ -130,6 +130,58 @@ function retargetVideoBitrate(videoBitrate, actualBytes, maxBytes) {
   return next < videoBitrate ? next : null;
 }
 
+/**
+ * GIF size targeting.
+ *
+ * GIF has no bitrate to aim, so an oversized GIF is retried with fewer frames and fewer
+ * pixels instead. Measured on the bundled FFmpeg with the app's palette filter, output size
+ * tracks roughly frameRate^0.9 × linearScale^1.8, which lets the next attempt be computed from
+ * the size actually produced rather than stepped down blindly.
+ *
+ * `src/lib/videoProcessor.ts` mirrors this for the browser encoder — this copy is the tested one.
+ */
+const GIF_FRAME_RATE_EXPONENT = 0.9;
+const GIF_SCALE_EXPONENT = 1.8;
+// The size model is approximate, so each retry aims a little under the cap.
+const GIF_USABLE_FRACTION = 0.9;
+const MIN_GIF_FRAME_RATE = 10;
+const MIN_GIF_SCALE = 0.25;
+const MAX_GIF_ATTEMPTS = 4;
+
+/**
+ * Next `{ frameRate, scale }` to try after a GIF encoded at `current` came out at `actualBytes`,
+ * or null once both are at their floors. `scale` multiplies the requested output height.
+ *
+ * The reduction is split evenly between motion and detail, so neither collapses on its own;
+ * whatever one side cannot absorb at its floor is taken from the other.
+ */
+function planGifRetry(current, actualBytes, maxBytes) {
+  const needed = (maxBytes * GIF_USABLE_FRACTION) / actualBytes;
+  if (needed >= 1) return null;
+
+  const frameRateFloorShare = Math.min(1, (MIN_GIF_FRAME_RATE / current.frameRate) ** GIF_FRAME_RATE_EXPONENT);
+  const scaleFloorShare = Math.min(1, (MIN_GIF_SCALE / current.scale) ** GIF_SCALE_EXPONENT);
+
+  let frameRateShare = Math.max(Math.sqrt(needed), frameRateFloorShare);
+  let scaleShare = needed / frameRateShare;
+  if (scaleShare < scaleFloorShare) {
+    scaleShare = scaleFloorShare;
+    frameRateShare = Math.max(frameRateFloorShare, needed / scaleShare);
+  }
+
+  const frameRate = Math.max(
+    MIN_GIF_FRAME_RATE,
+    Math.min(current.frameRate, Math.floor(current.frameRate * frameRateShare ** (1 / GIF_FRAME_RATE_EXPONENT)))
+  );
+  const scale = Math.max(
+    MIN_GIF_SCALE,
+    Math.min(current.scale, Math.floor(current.scale * scaleShare ** (1 / GIF_SCALE_EXPONENT) * 100) / 100)
+  );
+
+  if (frameRate >= current.frameRate && scale >= current.scale) return null;
+  return { frameRate, scale };
+}
+
 function isCodecCompatible(codec, format) {
   return format === "gif" || CODEC_FORMATS[codec]?.includes(format) === true;
 }
@@ -154,6 +206,8 @@ function toSafeNameSegment(value, fallback) {
 function getOutputFilename(inputPath, payload) {
   const sourceName = toSafeNameSegment(path.basename(inputPath, path.extname(inputPath)), "video");
   const presetId = toSafeNameSegment(payload.presetId, "export");
+  // GIF output never touches the codec or engine, so neither belongs in its name.
+  if (payload.format === "gif") return `${sourceName}-${presetId}.gif`;
   const engineSuffix = payload.encoder === "software" ? "" : `-${payload.encoder}`;
   return `${sourceName}-${presetId}-${payload.codec}${engineSuffix}.${payload.format}`;
 }
@@ -162,7 +216,10 @@ module.exports = {
   CODEC_FORMATS,
   ENGINE_PREFERENCE,
   ENGINE_REQUIREMENTS,
+  MAX_GIF_ATTEMPTS,
   MAX_SIZE_ATTEMPTS,
+  MIN_GIF_FRAME_RATE,
+  MIN_GIF_SCALE,
   MIN_VIDEO_BITRATE,
   assertVideoPayload,
   getOutputFilename,
@@ -170,6 +227,7 @@ module.exports = {
   isCodecCompatible,
   isEngineSupportedHere,
   pickFastestEngine,
+  planGifRetry,
   planVideoBitrate,
   retargetVideoBitrate,
 };
