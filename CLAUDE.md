@@ -70,7 +70,10 @@ They are not identical, and the differences matter:
   bitrate corrected from the size actually produced. `USABLE_FRACTION` exists to keep that
   retry rare — it was 0.96, which x264 overshot on the first pass, so every browser encode
   silently ran twice and took about twice as long. Treat a shrinking margin as a performance
-  regression, not just a quality tweak. Retrying only helps bitrate-controlled
+  regression, not just a quality tweak. GIF output has no bitrate, so it is size-targeted
+  separately by `planGifRetry` (same file, likewise mirrored in `videoProcessor.ts`): an
+  oversized GIF is re-encoded at a lower frame rate and output scale computed from the size
+  produced, using a size ≈ fps^0.9 × scale^1.8 model measured on the bundled FFmpeg. Retrying only helps bitrate-controlled
   codecs: `mjpeg`, `prores`, and `dnxhd` set `-q:v`/`-profile:v`, so they ignore `-b:v`
   entirely and simply stop at the floor.
 
@@ -170,9 +173,15 @@ show it: `createImageBitmap` — which both render paths decode with — rejects
 cannot tell an animated GIF from a static one, and several accepted formats arrive as
 `application/octet-stream`. `ImageSquisher` then routes on that:
 
-- **Animated** (GIF, APNG) → `animatedProcessor.ts`, which re-encodes through FFmpeg to
-  animated WebP. The canvas pipeline would flatten these to a single frame. WebP is the only
-  output because it is several times smaller than re-encoded GIF and much smaller than APNG.
+- **GIF, animated or still** → `animatedProcessor.ts`, re-encoded through FFmpeg **back to
+  GIF**: people who upload a GIF expect a GIF, and a canvas cannot write one. The palette stage
+  uses `dither=none` deliberately — dithering an already-paletted source only adds noise
+  (Bayer took an untouched re-encode from SSIM 0.99999 to 0.88) and was larger on scaled frames
+  too. Preset quality maps to palette size (`getGifColours`), and a size target reuses
+  `planGifRetry` from the video→GIF export. A preset that changes nothing visible hands back
+  the original when the re-encode is not smaller.
+- **APNG** → the same module, to animated WebP, which is far smaller than re-encoded APNG.
+  The canvas pipeline would flatten either to a single frame.
 - **Not browser-decodable** (TIFF, PSD, QOI, Targa, JPEG 2000, DDS) → converted to PNG by
   FFmpeg first, then handed to the ordinary canvas pipeline.
 - Everything else keeps the canvas path.

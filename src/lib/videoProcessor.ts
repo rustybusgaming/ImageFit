@@ -62,9 +62,14 @@ function getAudioArgs(format: VideoOutputFormat, audio: VideoAudioMode, audioBit
   return ["-c:a", "aac", "-b:a", bitrate];
 }
 
-// The comma inside min() has to be escaped or FFmpeg reads it as a filter separator.
-function getVideoFilter(settings: VideoExportSettings): string {
-  const watermarked = `[0:v]fps=${settings.frameRate},scale=-2:min(${VIDEO_HEIGHTS[settings.resolution]}\\,ih)[scaled];[scaled][1:v]overlay=W-w-24:H-h-24`;
+// The commas inside min() have to be escaped or FFmpeg reads them as filter separators.
+// `gifStep` overrides frame rate and scale when an oversized GIF is retried.
+function getVideoFilter(settings: VideoExportSettings, gifStep: GifStep = { frameRate: settings.frameRate, scale: 1 }): string {
+  const height = VIDEO_HEIGHTS[settings.resolution];
+  const scaled = gifStep.scale === 1
+    ? `scale=-2:min(${height}\\,ih)`
+    : `scale=-2:trunc(min(${height}\\,ih)*${gifStep.scale}/2)*2`;
+  const watermarked = `[0:v]fps=${gifStep.frameRate},${scaled}[scaled];[scaled][1:v]overlay=W-w-24:H-h-24`;
   if (settings.format !== "gif") return `${watermarked}[video]`;
 
   return `${watermarked}[overlaid];[overlaid]split[palettesource][frames];[palettesource]palettegen=stats_mode=diff[palette];[frames][palette]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle[video]`;
@@ -96,6 +101,51 @@ function retargetVideoBitrate(videoBitrate: number, actualBytes: number, maxByte
   const corrected = Math.floor(((videoBitrate * maxBytes) / actualBytes) * 0.95);
   const next = Math.max(MIN_VIDEO_BITRATE, corrected);
   return next < videoBitrate ? next : null;
+}
+
+/**
+ * GIF size targeting. This mirrors `planGifRetry` in `desktop/video-config.cjs`, which is the
+ * unit-tested copy — keep the two in step. GIF has no bitrate, so an oversized GIF is retried
+ * with a lower frame rate and scale computed from the size actually produced.
+ */
+export interface GifStep {
+  frameRate: number;
+  scale: number;
+}
+
+const GIF_FRAME_RATE_EXPONENT = 0.9;
+const GIF_SCALE_EXPONENT = 1.8;
+const GIF_USABLE_FRACTION = 0.9;
+export const MIN_GIF_FRAME_RATE = 10;
+const MIN_GIF_SCALE = 0.25;
+export const MAX_GIF_ATTEMPTS = 4;
+
+export function planGifRetry(current: GifStep, actualBytes: number, maxBytes: number): GifStep | null {
+  const needed = (maxBytes * GIF_USABLE_FRACTION) / actualBytes;
+  if (needed >= 1) return null;
+
+  const frameRateFloorShare = Math.min(1, (MIN_GIF_FRAME_RATE / current.frameRate) ** GIF_FRAME_RATE_EXPONENT);
+  const scaleFloorShare = Math.min(1, (MIN_GIF_SCALE / current.scale) ** GIF_SCALE_EXPONENT);
+
+  let frameRateShare = Math.max(Math.sqrt(needed), frameRateFloorShare);
+  let scaleShare = needed / frameRateShare;
+  if (scaleShare < scaleFloorShare) {
+    scaleShare = scaleFloorShare;
+    frameRateShare = Math.max(frameRateFloorShare, needed / scaleShare);
+  }
+
+  // Clamped to the current rate last, so a source already below the floor is never sped up.
+  const frameRate = Math.min(
+    current.frameRate,
+    Math.max(MIN_GIF_FRAME_RATE, Math.floor(current.frameRate * frameRateShare ** (1 / GIF_FRAME_RATE_EXPONENT)))
+  );
+  const scale = Math.max(
+    MIN_GIF_SCALE,
+    Math.min(current.scale, Math.floor(current.scale * scaleShare ** (1 / GIF_SCALE_EXPONENT) * 100) / 100)
+  );
+
+  if (frameRate >= current.frameRate && scale >= current.scale) return null;
+  return { frameRate, scale };
 }
 
 function getVideoMimeType(format: VideoOutputFormat): string {
@@ -240,7 +290,7 @@ export async function compressVideoToTarget(
   file: File,
   settings: VideoExportSettings,
   onProgress: (progress: number) => void
-): Promise<Blob> {
+): Promise<{ blob: Blob; reducedGif?: GifStep }> {
   const { duration } = await getVideoMetadata(file);
 
   if (!Number.isFinite(duration) || duration <= 0) {
@@ -264,7 +314,8 @@ export async function compressVideoToTarget(
     );
   }
 
-  const filter = getVideoFilter(settings);
+  const isGif = settings.format === "gif";
+  let gifStep: GifStep = { frameRate: settings.frameRate, scale: 1 };
   const codec = VIDEO_ENCODERS[settings.codec];
   const buildEncodingArgs = (videoBitrate: number) => settings.format === "gif"
     ? ["-loop", "0"]
@@ -305,11 +356,12 @@ export async function compressVideoToTarget(
     // bitrate corrected from the size actually produced rather than being thrown away.
     let videoBitrate = plan.videoBitrate;
 
-    for (let attempt = 0; attempt < MAX_SIZE_ATTEMPTS; attempt += 1) {
+    const maxAttempts = isGif ? MAX_GIF_ATTEMPTS : MAX_SIZE_ATTEMPTS;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       const exitCode = await encoder.exec([
         "-i", inputName,
         "-i", watermarkName,
-        "-filter_complex", filter,
+        "-filter_complex", getVideoFilter(settings, gifStep),
         "-map", "[video]",
         ...(settings.format !== "gif" && settings.audio !== "mute" ? ["-map", "0:a?"] : []),
         ...buildEncodingArgs(videoBitrate),
@@ -331,15 +383,25 @@ export async function compressVideoToTarget(
       videoData.set(output);
       const result = new Blob([videoData.buffer], { type: getVideoMimeType(settings.format) });
       if (result.size <= settings.maxBytes) {
-        return result;
+        const reduced = isGif && (gifStep.frameRate !== settings.frameRate || gifStep.scale !== 1);
+        return reduced ? { blob: result, reducedGif: gifStep } : { blob: result };
       }
 
-      const nextBitrate = settings.format === "gif" ? null : retargetVideoBitrate(videoBitrate, result.size, settings.maxBytes);
+      if (isGif) {
+        const nextStep = planGifRetry(gifStep, result.size, settings.maxBytes);
+        if (nextStep === null) break;
+        gifStep = nextStep;
+        continue;
+      }
+
+      const nextBitrate = retargetVideoBitrate(videoBitrate, result.size, settings.maxBytes);
       if (nextBitrate === null) break;
       videoBitrate = nextBitrate;
     }
 
-    throw new Error("This video could not be reduced to the selected file-size limit.");
+    throw new Error(isGif
+      ? "This GIF is still too large even at a lower frame rate and size. Trim the clip, pick a larger size limit, or export MP4 instead."
+      : "This video could not be reduced to the selected file-size limit.");
   } finally {
     encoder.off("progress", progressHandler);
     encoder.off("log", logHandler);

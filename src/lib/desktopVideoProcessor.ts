@@ -1,5 +1,5 @@
 import { inspectVideo } from "./videoProcessor";
-import type { VideoExportSettings, VideoResolution } from "./videoProcessor";
+import type { GifStep, VideoExportSettings, VideoResolution } from "./videoProcessor";
 
 const VIDEO_HEIGHTS: Record<VideoResolution, number> = {
   "1080p": 1080,
@@ -35,7 +35,7 @@ export async function compressDesktopVideoToTarget(
   settings: VideoExportSettings,
   presetId: string,
   onProgress: (progress: number) => void
-): Promise<{ outputPath: string; size: number }> {
+): Promise<{ outputPath: string; size: number; reducedGif?: GifStep }> {
   const desktop = window.imageFitDesktop;
   if (!desktop) throw new Error("Native video encoding is only available in ImageFit Desktop.");
 
